@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FlowPath — Yol Bulma ve Mekânsal Zeka Sistemi</title>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Bebas+Neue&family=Anton&display=swap" rel="stylesheet" />
+
+  <!-- GSAP -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+
+  <!-- Lenis Smooth Scroll -->
+  <script src="https://cdn.jsdelivr.net/npm/lenis@1.1.14/dist/lenis.min.js"></script>
+
+  <!-- Three.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+  <!-- ─────────────────────────────────────────
+       NAVBAR
+  ───────────────────────────────────────── -->
+  <nav id="navbar">
+    <a class="nav-logo" href="#">FLOWPATH</a>
+    <p class="nav-tagline">ALGORİTMA BAZLI YOL BULMA SİMÜLASYONU</p>
+    <ul class="nav-links">
+      <li><a href="#algorithm-select">ALGORİTMALAR</a></li>
+      <li><a href="#simulation">HARİTALAR</a></li>
+      <li><a href="#simulation">SİMÜLASYON</a></li>
+    </ul>
+  </nav>
+
+  <!-- ─────────────────────────────────────────
+       BÖLÜM 1 — HERO
+  ───────────────────────────────────────── -->
+  <section id="hero">
+    <canvas id="hero-canvas"></canvas>
+    <div class="hero-content">
+      <h1 class="hero-title">
+        <span class="title-row">FLOW</span>
+        <span class="title-row">PATH</span>
+      </h1>
+      <p class="hero-subtitle">Ajan tabanlı yol bulma algoritmalarını gerçek zamanlı simülasyonla keşfet.</p>
+      <a class="hero-cta" href="#intro">KEŞFET +</a>
+    </div>
+    <div class="scroll-hint">
+      <div class="scroll-line"></div>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────────────────────
+       BÖLÜM 2 — SİNEMATİK INTRO (Scroll-driven video)
+  ───────────────────────────────────────── -->
+  <section id="intro">
+    <div class="intro-sticky">
+      <video id="intro-video" muted playsinline preload="auto">
+        <source src="videos/intro.mp4" type="video/mp4" />
+      </video>
+      <div class="intro-placeholder">
+        <div class="placeholder-grid"></div>
+        <p class="placeholder-label">ŞEHİR → GRİD</p>
+      </div>
+      <div class="intro-overlay">
+        <p class="intro-tagline">Her gün milyonlarca ajan,<br />en kısa yolu arıyor.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────────────────────
+       BÖLÜM 3 — PROJE ANLATIMI (4 video)
+  ───────────────────────────────────────── -->
+  <section id="story">
+    <div class="story-sticky-wrap">
+      <!-- İlerleme göstergesi -->
+      <div class="story-progress" aria-hidden="true">
+        <span class="story-dot active" data-index="0"></span>
+        <span class="story-dot" data-index="1"></span>
+        <span class="story-dot" data-index="2"></span>
+        <span class="story-dot" data-index="3"></span>
+      </div>
+
+      <div class="story-block" data-index="0">
+        <video class="story-video" muted playsinline>
+          <source src="videos/video1.mp4" type="video/mp4" />
+        </video>
+        <div class="story-video-placeholder bg-chaos"></div>
+        <span class="story-num">01 / 04</span>
+        <div class="story-text story-text--left">
+          <span class="story-label">Problem</span>
+          <h2>Kaos neden<br />oluşur?</h2>
+          <p>Binlerce ajan aynı anda hareket ettiğinde, akıllı bir yönlendirme olmadan sistem çöker. Çarpışmalar, tıkanmalar, hedeflere ulaşamayan karakterler.</p>
+        </div>
+      </div>
+
+      <div class="story-block" data-index="1">
+        <video class="story-video" muted playsinline>
+          <source src="videos/video2.mp4" type="video/mp4" />
+        </video>
+        <div class="story-video-placeholder bg-game"></div>
+        <span class="story-num">02 / 04</span>
+        <div class="story-text story-text--right">
+          <span class="story-label">Oyun Dünyası</span>
+          <h2>Strateji oyunlarında<br />aynı sorun</h2>
+          <p>RTS'ten açık dünya RPG'lere kadar binlerce NPC'nin çarpışmadan hedefe ulaşması, oyun motorlarının en zor problemlerinden biridir.</p>
+        </div>
+      </div>
+
+      <div class="story-block" data-index="2">
+        <video class="story-video" muted playsinline>
+          <source src="videos/video3.mp4" type="video/mp4" />
+        </video>
+        <div class="story-video-placeholder bg-order"></div>
+        <span class="story-num">03 / 04</span>
+        <div class="story-text story-text--left">
+          <span class="story-label">Çözüm</span>
+          <h2>Algoritma<br />devreye girince</h2>
+          <p>Doğru pathfinding algoritması sisteme entegre edildiğinde düzen kendiliğinden ortaya çıkar. Her ajan en kısa, en güvenli yolu bulur.</p>
+        </div>
+      </div>
+
+      <div class="story-block" data-index="3">
+        <video class="story-video" muted playsinline>
+          <source src="videos/video4.mp4" type="video/mp4" />
+        </video>
+        <div class="story-video-placeholder bg-code"></div>
+        <span class="story-num">04 / 04</span>
+        <div class="story-text story-text--right">
+          <span class="story-label">FlowPath</span>
+          <h2>Biz ne<br />yaptık?</h2>
+          <p>BFS, DFS, Dijkstra ve A* algoritmalarını gerçek zamanlı simülasyonla görselleştiren bir sistem geliştirdik. Farkı kendin gör.</p>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ─────────────────────────────────────────
+       BÖLÜM 4 — ALGORİTMA SEÇİMİ
+  ───────────────────────────────────────── -->
+  <section id="algorithm-select">
+
+    <!-- İki sütun: Globe + Panel — başlık sol sütunda -->
+    <div class="algo-main">
+
+      <!-- Sol: Başlık + İnteraktif Glob -->
+      <div class="algo-globe-wrap">
+        <div class="algo-section-header">
+          <span class="section-label-tag">Algoritma Seçimi</span>
+          <h2>Karşılaştırmak istediğin<br />iki algoritmayı seç</h2>
+        </div>
+        <p class="algo-instruction">Düğümlere tıklayarak iki algoritma seç</p>
+        <div class="algo-globe-container">
+          <canvas id="algo-canvas"></canvas>
+          <!-- Düğüm etiketleri JS tarafından oluşturulacak -->
+          <div id="algo-node-labels"></div>
+        </div>
+      </div>
+
+      <!-- Sağ: Bilgi Paneli -->
+      <div class="algo-panel">
+        <div class="algo-info-card" id="algo-info">
+          <p class="algo-info-placeholder">Bir algoritmaya tıkla</p>
+          <div class="algo-detail" id="algo-detail" style="display:none;">
+            <div class="algo-img-wrap">
+              <img class="algo-img" id="algo-img" src="" alt="" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Seçilenler -->
+        <div class="algo-selected-wrap">
+          <p class="algo-selected-label">Seçilenler</p>
+          <div class="algo-selected-slots">
+            <div class="algo-slot" id="slot-0">—</div>
+            <div class="algo-slot-sep">vs</div>
+            <div class="algo-slot" id="slot-1">—</div>
+          </div>
+        </div>
+
+        <button class="btn-continue" id="algo-continue" disabled>Simülasyona Geç →</button>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ─────────────────────────────────────────
+       BÖLÜM 5 — SİMÜLASYON
+  ───────────────────────────────────────── -->
+  <section id="simulation">
+    <div class="sim-header">
+      <span class="section-label-tag">Simülasyon</span>
+      <h2>Algoritmayı çalıştır</h2>
+      <p id="sim-algo-display">Seçilen algoritmalar burada görünecek</p>
+    </div>
+
+    <div class="sim-controls">
+      <div class="control-group">
+        <label>Harita Seç</label>
+        <div class="map-options">
+
+          <div class="map-option-wrap">
+            <div class="map-option selected" data-map="0">
+              <img src="assets/maps/map1.png" alt="Harita 1"
+                onload="this.nextElementSibling.style.display='none'"
+                onerror="this.style.display='none'" />
+              <div class="map-placeholder">H1</div>
+            </div>
+            <div class="map-desc">
+              <span class="map-desc-name">Şehir Izgara</span>
+              <span class="map-desc-text">Dar sokaklar, ızgara düzen. Çarpışma riski yüksek.</span>
+              <span class="map-desc-tip">A* / Dijkstra önerilir</span>
+            </div>
+          </div>
+
+          <div class="map-option-wrap">
+            <div class="map-option" data-map="1">
+              <img src="assets/maps/map2.png" alt="Harita 2"
+                onload="this.nextElementSibling.style.display='none'"
+                onerror="this.style.display='none'" />
+              <div class="map-placeholder">H2</div>
+            </div>
+            <div class="map-desc">
+              <span class="map-desc-name">Labirent</span>
+              <span class="map-desc-text">Tek yollu koridorlar. Tıkanma kaçınılmaz.</span>
+              <span class="map-desc-tip">BFS / A* önerilir</span>
+            </div>
+          </div>
+
+          <div class="map-option-wrap">
+            <div class="map-option" data-map="2">
+              <img src="assets/maps/map3.png" alt="Harita 3"
+                onload="this.nextElementSibling.style.display='none'"
+                onerror="this.style.display='none'" />
+              <div class="map-placeholder">H3</div>
+            </div>
+            <div class="map-desc">
+              <span class="map-desc-name">Açık Alan</span>
+              <span class="map-desc-text">Geniş alan, seyrek engel. Algoritma farkı net görünür.</span>
+              <span class="map-desc-tip">Tüm algoritmalar uygun</span>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <div class="control-group">
+        <label>Ajan Sayısı</label>
+        <div class="agent-options">
+          <button class="agent-btn selected" data-count="5">5</button>
+          <button class="agent-btn" data-count="15">15</button>
+          <button class="agent-btn" data-count="25">25</button>
+          <button class="agent-btn" data-count="35">35</button>
+        </div>
+      </div>
+
+      <div class="sim-action-btns">
+        <button class="btn-primary" id="sim-start">Simülasyonu Başlat</button>
+        <button class="btn-secondary" id="sim-reset" style="display:none;">Sıfırla</button>
+      </div>
+    </div>
+
+    <div class="sim-canvases" id="sim-canvases">
+      <div class="sim-canvas-wrap">
+        <p class="sim-canvas-label" id="canvas-label-a">—</p>
+        <canvas id="canvas-a"></canvas>
+      </div>
+      <div class="sim-canvas-wrap">
+        <p class="sim-canvas-label" id="canvas-label-b">—</p>
+        <canvas id="canvas-b"></canvas>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────────────────────
+       BÖLÜM 6 — İSTATİSTİKLER
+  ───────────────────────────────────────── -->
+  <section id="stats" style="display:none;">
+    <span class="section-label-tag">İstatistikler</span>
+    <h2>Sonuçlar</h2>
+    <div class="stats-grid">
+      <div class="stats-table-wrap">
+        <table class="stats-table">
+          <thead>
+            <tr>
+              <th>Metrik</th>
+              <th id="stats-algo-a">Algoritma A</th>
+              <th id="stats-algo-b">Algoritma B</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>Çarpışma Sayısı</td><td id="stat-collision-a">—</td><td id="stat-collision-b">—</td></tr>
+            <tr><td>Toplam Adım</td><td id="stat-steps-a">—</td><td id="stat-steps-b">—</td></tr>
+            <tr><td>Süre (ms)</td><td id="stat-time-a">—</td><td id="stat-time-b">—</td></tr>
+            <tr><td>Hedefe Ulaşan</td><td id="stat-arrived-a">—</td><td id="stat-arrived-b">—</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="stats-charts">
+        <div class="chart-wrap">
+          <canvas id="chart-collision"></canvas>
+        </div>
+        <div class="chart-wrap">
+          <canvas id="chart-steps"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- Algoritma karmaşıklık analizi -->
+    <div class="complexity-section" id="complexity-section" style="display:none;">
+      <h3 class="complexity-heading">Algoritma Analizi</h3>
+      <div class="complexity-cards" id="complexity-cards"></div>
+      <div class="algo-why-block" id="algo-why-block"></div>
+    </div>
+  </section>
+
+  <!-- JS Dosyaları -->
+  <script src="js/algorithms.js"></script>
+  <script src="js/simulation.js"></script>
+  <script src="js/tour.js"></script>
+  <script src="js/hero.js"></script>
+  <script src="js/intro.js"></script>
+  <script src="js/algo-select.js"></script>
+  <script src="js/stats.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
