@@ -85,11 +85,28 @@
     [12, 17, 20, 27, 2],
   ];
 
+  // Hue wheel'de çapraz dağılım: ardışık iki ajan hiçbir zaman benzer renk almaz
   const COLORS = [
-    '#00d4ff','#ff6b35','#7fff00','#ff3cac','#ffd700',
-    '#a78bfa','#34d399','#fb923c','#60a5fa','#f472b6',
-    '#4ade80','#facc15','#38bdf8','#c084fc','#f87171',
-    '#e879f9','#f97316','#22d3ee','#a3e635','#fb7185',
+    '#ff2222', // 0  kırmızı
+    '#00e5ff', // 1  cyan        (180° fark)
+    '#ffdd00', // 2  sarı        (90°)
+    '#aa00ff', // 3  mor         (270°)
+    '#00ff77', // 4  nane        (135°)
+    '#ff6600', // 5  turuncu     (45°)
+    '#0055ff', // 6  kobalt mavi (225°)
+    '#ff0099', // 7  magenta     (315°)
+    '#88ff00', // 8  lime        (112°)
+    '#6633ff', // 9  indigo      (247°)
+    '#00ddaa', // 10 teal        (157°)
+    '#ff5500', // 11 mercan      (22°)
+    '#22aaff', // 12 gökyüzü     (202°)
+    '#dd00ee', // 13 violet      (292°)
+    '#aaff22', // 14 sarı-yeşil  (78°)
+    '#ff3377', // 15 gül         (337°)
+    '#00ffcc', // 16 turkuaz     (165°)
+    '#ff8800', // 17 amber       (33°)
+    '#4400ff', // 18 ultramavi   (258°)
+    '#44ff66', // 19 açık yeşil  (135°+)
   ];
 
   // ── Canva harita PNG → grid ───────────────────────────────
@@ -273,8 +290,8 @@
 
       // Scene
       this.scene = new THREE.Scene();
-      this.scene.background = new THREE.Color(0x05050e);
-      this.scene.fog = new THREE.FogExp2(0x05050e, 0.018);
+      this.scene.background = new THREE.Color(0x080818);
+      this.scene.fog = new THREE.FogExp2(0x080818, 0.012);
 
       // Camera — perspektif, yukarıdan diagonal
       this.camera = new THREE.PerspectiveCamera(42, w / h, 0.1, 300);
@@ -291,17 +308,20 @@
       this.controls.target.set(0, 0, 0);
       this.controls.update();
 
-      // Işıklandırma (kalıcı — clearScene'de silinmez)
-      const ambient = new THREE.AmbientLight(0x223355, 0.75);
+      // Işıklandırma — nötr beyaz, güçlü
+      const ambient = new THREE.AmbientLight(0xffffff, 2.2);
       this.scene.add(ambient);
 
-      const sun = new THREE.DirectionalLight(0xffffff, 0.9);
-      sun.position.set(COLS * 0.4, 35, ROWS * 0.3);
+      const sun = new THREE.DirectionalLight(0xffffff, 3.0);
+      sun.position.set(COLS * 0.5, 40, ROWS * 0.4);
       this.scene.add(sun);
 
-      const fill = new THREE.DirectionalLight(0x112244, 0.35);
-      fill.position.set(-COLS * 0.4, 15, -ROWS * 0.4);
+      const fill = new THREE.DirectionalLight(0xaaccff, 1.5);
+      fill.position.set(-COLS * 0.5, 20, -ROWS * 0.5);
       this.scene.add(fill);
+
+      const hemi = new THREE.HemisphereLight(0x8899cc, 0x050812, 1.2);
+      this.scene.add(hemi);
 
       this.initialized = true;
     }
@@ -315,65 +335,89 @@
       );
     }
 
-    // Among Us karakteri — gövde + kafa + vizör + sırt çantası
+    // Among Us karakteri — oyuna benzer bean şekli, büyük vizör
     _createAmongusAgent(hexColor, opacity) {
       const op  = opacity === undefined ? 1.0 : opacity;
       const c   = new THREE.Color(hexColor);
       const grp = new THREE.Group();
 
       const bodyMat = new THREE.MeshStandardMaterial({
-        color: c, emissive: c, emissiveIntensity: 0.18,
-        roughness: 0.38, metalness: 0.42,
+        color: c, emissive: c, emissiveIntensity: 0.55,
+        roughness: 0.22, metalness: 0.60,
         transparent: op < 1, opacity: op,
       });
 
-      // Gövde (yassı elipsoid — bean şekli)
-      const bodyGeo = new THREE.SphereGeometry(0.26, 16, 12);
+      // Ana gövde — yassı yumurta/bean şekli, daha büyük
+      const bodyGeo = new THREE.SphereGeometry(0.34, 20, 16);
       const body    = new THREE.Mesh(bodyGeo, bodyMat);
-      body.scale.set(0.88, 1.15, 0.76);
-      body.position.y = 0.18;
+      body.scale.set(0.82, 1.40, 0.75);
+      body.position.y = 0.28;
       grp.add(body);
 
-      // Kafa (gövdeden biraz büyük, üste)
-      const headGeo = new THREE.SphereGeometry(0.22, 14, 10);
+      // Kafa — gövdeyle birleşik, üste yuvarlak
+      const headGeo = new THREE.SphereGeometry(0.30, 18, 14);
       const head    = new THREE.Mesh(headGeo, bodyMat);
-      head.scale.set(1.0, 0.92, 0.85);
-      head.position.set(0.035, 0.44, 0);
+      head.scale.set(0.98, 0.85, 0.80);
+      head.position.set(0.04, 0.62, 0);
       grp.add(head);
 
-      // Vizör (cam efekti — açık mavi, şeffaf)
+      // Vizör — Among Us'taki gibi büyük, yuvarlak, parlak cam
       const visorMat = new THREE.MeshStandardMaterial({
-        color: 0x99eeff, emissive: 0x44bbdd, emissiveIntensity: 0.55,
-        roughness: 0.05, metalness: 0.1,
-        transparent: true, opacity: op < 1 ? op * 0.72 : 0.78,
+        color: 0xe0f8ff,
+        emissive: 0x66eeff,
+        emissiveIntensity: 1.6,
+        roughness: 0.01,
+        metalness: 0.05,
+        transparent: true,
+        opacity: op < 1 ? op * 0.75 : 0.88,
       });
-      const visorGeo = new THREE.SphereGeometry(0.14, 12, 8);
+      const visorGeo = new THREE.SphereGeometry( 0.22, 16, 12);
       const visor    = new THREE.Mesh(visorGeo, visorMat);
-      visor.scale.set(0.82, 0.56, 0.32);
-      visor.position.set(0.13, 0.46, 0.17);
+      visor.scale.set(1.10, 0.68, 0.32);
+      visor.position.set(0.20, 0.65, 0.24);
       grp.add(visor);
 
-      // Sırt çantası
+      // Vizör yansıma noktası (beyaz parlama)
+      const glintMat = new THREE.MeshStandardMaterial({
+        color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 2.0,
+        transparent: true, opacity: op < 1 ? op * 0.5 : 0.55,
+      });
+      const glintGeo = new THREE.SphereGeometry(0.06, 8, 6);
+      const glint    = new THREE.Mesh(glintGeo, glintMat);
+      glint.position.set(0.26, 0.70, 0.28);
+      grp.add(glint);
+
+      // Sırt çantası — daha büyük, belirgin
       const packMat = new THREE.MeshStandardMaterial({
-        color: c.clone().multiplyScalar(0.62),
-        roughness: 0.65, metalness: 0.2,
+        color: c.clone().multiplyScalar(0.55),
+        roughness: 0.70, metalness: 0.18,
         transparent: op < 1, opacity: op,
       });
-      const packGeo = new THREE.BoxGeometry(0.17, 0.21, 0.11);
+      const packGeo = new THREE.BoxGeometry(0.22, 0.30, 0.16);
       const pack    = new THREE.Mesh(packGeo, packMat);
-      pack.position.set(-0.03, 0.22, -0.22);
+      pack.position.set(-0.04, 0.28, -0.30);
       grp.add(pack);
 
-      // Ayaklar (küçük iki silindir)
+      // Sırt çantası tüp detayı
+      const tubeMat = new THREE.MeshStandardMaterial({
+        color: c.clone().multiplyScalar(0.40), roughness: 0.6,
+        transparent: op < 1, opacity: op,
+      });
+      const tubeGeo = new THREE.CylinderGeometry(0.04, 0.04, 0.12, 8);
+      const tube    = new THREE.Mesh(tubeGeo, tubeMat);
+      tube.position.set(-0.04, 0.42, -0.32);
+      grp.add(tube);
+
+      // Ayaklar — daha kalın
       const legMat = new THREE.MeshStandardMaterial({
-        color: c.clone().multiplyScalar(0.55),
+        color: c.clone().multiplyScalar(0.52),
         roughness: 0.7, metalness: 0.1,
         transparent: op < 1, opacity: op,
       });
-      const legGeo = new THREE.CylinderGeometry(0.065, 0.07, 0.12, 8);
-      [-0.10, 0.10].forEach(xOff => {
+      const legGeo = new THREE.CylinderGeometry(0.082, 0.090, 0.16, 10);
+      [-0.13, 0.13].forEach(xOff => {
         const leg = new THREE.Mesh(legGeo, legMat);
-        leg.position.set(xOff, 0.00, 0.04);
+        leg.position.set(xOff, 0.02, 0.05);
         grp.add(leg);
       });
 
@@ -383,10 +427,10 @@
     }
 
     buildMap(grid) {
-      // Zemin
+      // Zemin — çok koyu, duvarlarla maksimum kontrast
       const floorGeo = new THREE.PlaneGeometry(COLS, ROWS);
       const floorMat = new THREE.MeshStandardMaterial({
-        color: 0x0b0b1a, roughness: 0.95, metalness: 0.0,
+        color: 0x050810, roughness: 0.95, metalness: 0.0,
       });
       const floor = new THREE.Mesh(floorGeo, floorMat);
       floor.rotation.x = -Math.PI / 2;
@@ -394,10 +438,10 @@
       this.scene.add(floor);
       this.sceneObjects.push(floor);
 
-      // Grid çizgisi — ince mavi
+      // Grid çizgisi — cyan, açıkça görünür
       const gh = new THREE.GridHelper(
         Math.max(COLS, ROWS), Math.max(COLS, ROWS),
-        0x0a1828, 0x0a1828
+        0x1a4060, 0x1a4060
       );
       gh.position.y = 0.01;
       this.scene.add(gh);
@@ -411,10 +455,11 @@
         }
       }
 
+      // Duvar ana mesh — açık mavi-gri, net görünür
       const wallGeo = new THREE.BoxGeometry(0.94, 2.2, 0.94);
       const wallMat = new THREE.MeshStandardMaterial({
-        color: 0x0e0e18, roughness: 0.9, metalness: 0.15,
-        emissive: 0x050508, emissiveIntensity: 1,
+        color: 0x4a5880, roughness: 0.50, metalness: 0.45,
+        emissive: 0x1e2a48, emissiveIntensity: 0.35,
       });
       const walls = new THREE.InstancedMesh(wallGeo, wallMat, wallList.length);
       const dummy = new THREE.Object3D();
@@ -427,6 +472,21 @@
       walls.instanceMatrix.needsUpdate = true;
       this.scene.add(walls);
       this.sceneObjects.push(walls);
+
+      // Duvar kenar çizgileri — cyan parlama efekti
+      const edgeGeo = new THREE.EdgesGeometry(wallGeo);
+      const edgeMat = new THREE.LineBasicMaterial({
+        color: 0x2a5faa,
+        transparent: true,
+        opacity: 0.55,
+      });
+      wallList.forEach(([r, c]) => {
+        const wp   = this._toWorld(r, c);
+        const edge = new THREE.LineSegments(edgeGeo, edgeMat);
+        edge.position.set(wp.x, 1.1, wp.z);
+        this.scene.add(edge);
+        this.sceneObjects.push(edge);
+      });
     }
 
     setupAgents(agents) {
@@ -515,7 +575,7 @@
 
         // Ajan pozisyonu — smooth lerp
         const wp     = this._toWorld(ag.pos[0], ag.pos[1]);
-        const target = new THREE.Vector3(wp.x, 0, wp.z);
+        const target = new THREE.Vector3(wp.x, 0.05, wp.z);
         mesh.position.lerp(target, 0.22);
 
         // Hareket yönüne döndür (Among Us yürüme efekti)
