@@ -19,6 +19,7 @@
 
   <!-- Three.js -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 
   <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
@@ -35,7 +36,7 @@
     <p class="nav-tagline">ALGORİTMA BAZLI YOL BULMA SİMÜLASYONU</p>
     <ul class="nav-links">
       <li><a href="#algorithm-select">ALGORİTMALAR</a></li>
-      <li><a href="#simulation">HARİTALAR</a></li>
+      <li><a href="#sim-controls">HARİTALAR</a></li>
       <li><a href="#simulation">SİMÜLASYON</a></li>
     </ul>
   </nav>
@@ -203,7 +204,7 @@
       <p id="sim-algo-display">Seçilen algoritmalar burada görünecek</p>
     </div>
 
-    <div class="sim-controls">
+    <div class="sim-controls" id="sim-controls">
       <div class="control-group">
         <label>Harita Seç</label>
         <div class="map-options">
@@ -260,6 +261,8 @@
           <button class="agent-btn" data-count="15">15</button>
           <button class="agent-btn" data-count="25">25</button>
           <button class="agent-btn" data-count="35">35</button>
+          <button class="agent-btn" data-count="45">45</button>
+          <button class="agent-btn" data-count="55">55</button>
         </div>
       </div>
 
@@ -273,10 +276,20 @@
       <div class="sim-canvas-wrap">
         <p class="sim-canvas-label" id="canvas-label-a">—</p>
         <canvas id="canvas-a"></canvas>
+        <div class="canvas-hud" id="hud-a">
+          <div class="hud-row"><span class="hud-lbl">ADIM</span><span class="hud-val" id="hud-a-tick">0</span></div>
+          <div class="hud-row"><span class="hud-lbl">ÇARPIŞMA</span><span class="hud-val" id="hud-a-coll">0</span></div>
+          <div class="hud-row"><span class="hud-lbl">ULAŞAN</span><span class="hud-val" id="hud-a-arr">0/0</span></div>
+        </div>
       </div>
       <div class="sim-canvas-wrap">
         <p class="sim-canvas-label" id="canvas-label-b">—</p>
         <canvas id="canvas-b"></canvas>
+        <div class="canvas-hud" id="hud-b">
+          <div class="hud-row"><span class="hud-lbl">ADIM</span><span class="hud-val" id="hud-b-tick">0</span></div>
+          <div class="hud-row"><span class="hud-lbl">ÇARPIŞMA</span><span class="hud-val" id="hud-b-coll">0</span></div>
+          <div class="hud-row"><span class="hud-lbl">ULAŞAN</span><span class="hud-val" id="hud-b-arr">0/0</span></div>
+        </div>
       </div>
     </div>
   </section>
@@ -287,6 +300,18 @@
   <section id="stats" style="display:none;">
     <span class="section-label-tag">İstatistikler</span>
     <h2>Sonuçlar</h2>
+
+    <!-- Kazanan banner -->
+    <div class="stats-winner-banner" id="stats-winner-banner"></div>
+
+    <!-- Skor kartları -->
+    <div class="stats-score-row">
+      <div class="stats-score-card" id="stats-score-a"></div>
+      <div class="stats-score-sep">VS</div>
+      <div class="stats-score-card" id="stats-score-b"></div>
+    </div>
+
+    <!-- Grafik + Tablo -->
     <div class="stats-grid">
       <div class="stats-table-wrap">
         <table class="stats-table">
@@ -309,17 +334,17 @@
         <div class="chart-wrap">
           <canvas id="chart-collision"></canvas>
         </div>
-        <div class="chart-wrap">
-          <canvas id="chart-steps"></canvas>
+        <div class="chart-donut-row">
+          <div class="chart-donut-wrap">
+            <p class="chart-donut-label" id="donut-label-a">—</p>
+            <canvas id="chart-donut-a"></canvas>
+          </div>
+          <div class="chart-donut-wrap">
+            <p class="chart-donut-label" id="donut-label-b">—</p>
+            <canvas id="chart-donut-b"></canvas>
+          </div>
         </div>
       </div>
-    </div>
-
-    <!-- Algoritma karmaşıklık analizi -->
-    <div class="complexity-section" id="complexity-section" style="display:none;">
-      <h3 class="complexity-heading">Algoritma Analizi</h3>
-      <div class="complexity-cards" id="complexity-cards"></div>
-      <div class="algo-why-block" id="algo-why-block"></div>
     </div>
   </section>
 

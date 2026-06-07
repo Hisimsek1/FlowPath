@@ -2,7 +2,6 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import time
-import random
 
 from algorithms import bfs, dfs, dijkstra, astar
 
@@ -120,11 +119,16 @@ def make_rng(seed):
 
 
 def random_free(grid, rng):
-    while True:
+    for _ in range(10000):
         r = 1 + int(rng() * (ROWS - 2))
         c = 1 + int(rng() * (COLS - 2))
         if grid[r][c] == 0:
             return (r, c)
+    # Fallback: ilk boş hücreyi döndür
+    for r in range(1, ROWS - 1):
+        for c in range(1, COLS - 1):
+            if grid[r][c] == 0:
+                return (r, c)
 
 
 # ── API endpoint'leri ─────────────────────────────────────────────────────────
@@ -161,15 +165,21 @@ def simulate():
     if not data:
         return jsonify({'error': 'JSON body bekleniyor'}), 400
 
-    algo_key   = data.get('algorithm', 'bfs').lower()
-    map_index  = int(data.get('map', 0))
-    agent_count = int(data.get('agents', 5))
-    seed       = int(data.get('seed', 42))
+    algo_key = (data.get('algorithm') or 'bfs').lower()
+
+    try:
+        map_index   = int(data.get('map', 0))
+        agent_count = int(data.get('agents', 5))
+        seed        = int(data.get('seed', 42))
+    except (ValueError, TypeError):
+        return jsonify({'error': 'map, agents, seed integer olmalı'}), 400
 
     if map_index not in (0, 1, 2):
         return jsonify({'error': 'map 0, 1 veya 2 olmalı'}), 400
     if algo_key not in ('bfs', 'dfs', 'dijkstra', 'astar'):
         return jsonify({'error': 'algorithm: bfs, dfs, dijkstra, astar'}), 400
+    if not (1 <= agent_count <= 55):
+        return jsonify({'error': 'agents 1-55 arasında olmalı'}), 400
 
     grid    = MAPS[map_index]
     weights = build_weights(map_index)

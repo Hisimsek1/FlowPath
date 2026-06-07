@@ -1,4 +1,4 @@
-/* simulation.js — Canvas simülasyon motoru */
+/* simulation.js — Three.js 3D simülasyon motoru */
 
 (function () {
 
@@ -78,15 +78,13 @@
   const ROWS = 20;
   const COLS = 30;
 
-  // Ağırlıklı bölgeler — Dijkstra/A* buradan kaçar, BFS bilmez
+  // [row_start, row_end, col_start, col_end, weight] — backend/app.py WEIGHT_ZONES ile birebir
   const WEIGHT_ZONES = [
-    [5, 14, 10, 20],
-    [3,  8,  2,  8],
-    [11, 17, 21, 27],
+    [5, 14, 10, 20, 3],
+    [3,  8,  3,  8, 2],
+    [12, 17, 20, 27, 2],
   ];
-  const ZONE_WEIGHT = 3;
 
-  // Ajan renk paleti (module level — önizleme için de kullanılıyor)
   const COLORS = [
     '#00d4ff','#ff6b35','#7fff00','#ff3cac','#ffd700',
     '#a78bfa','#34d399','#fb923c','#60a5fa','#f472b6',
@@ -94,23 +92,22 @@
     '#e879f9','#f97316','#22d3ee','#a3e635','#fb7185',
   ];
 
-  // ── Canva harita PNG → grid dönüştürücü ──────────────────
+  // ── Canva harita PNG → grid ───────────────────────────────
   function loadMapFromImage(mapIndex, src) {
     return new Promise((resolve) => {
       const img = new Image();
       img.onload = () => {
-        const tmp    = document.createElement('canvas');
-        tmp.width    = COLS;
-        tmp.height   = ROWS;
-        const tctx   = tmp.getContext('2d');
+        const tmp = document.createElement('canvas');
+        tmp.width = COLS; tmp.height = ROWS;
+        const tctx = tmp.getContext('2d');
         tctx.drawImage(img, 0, 0, COLS, ROWS);
-        const px     = tctx.getImageData(0, 0, COLS, ROWS).data;
-        const grid   = [];
+        const px = tctx.getImageData(0, 0, COLS, ROWS).data;
+        const grid = [];
         for (let r = 0; r < ROWS; r++) {
           const row = [];
           for (let c = 0; c < COLS; c++) {
-            const i  = (r * COLS + c) * 4;
-            const br = (px[i] * 0.299 + px[i+1] * 0.587 + px[i+2] * 0.114);
+            const i = (r * COLS + c) * 4;
+            const br = px[i]*0.299 + px[i+1]*0.587 + px[i+2]*0.114;
             row.push(br < 110 ? 1 : 0);
           }
           grid.push(row);
@@ -139,7 +136,6 @@
       this.data = MAPS[mapIndex];
       this._buildWeights();
     }
-
     _buildWeights() {
       this._wts = [];
       for (let r = 0; r < ROWS; r++) {
@@ -147,19 +143,17 @@
         for (let c = 0; c < COLS; c++) {
           if (this.data[r][c] === 1) { row.push(99); continue; }
           let w = 1;
-          for (const [r0,r1,c0,c1] of WEIGHT_ZONES) {
-            if (r >= r0 && r <= r1 && c >= c0 && c <= c1) { w = ZONE_WEIGHT; break; }
+          for (const [r0,r1,c0,c1,ww] of WEIGHT_ZONES) {
+            if (r >= r0 && r <= r1 && c >= c0 && c <= c1) { w = ww; break; }
           }
           row.push(w);
         }
         this._wts.push(row);
       }
     }
-
     isWall(r, c) { return this.data[r][c] === 1; }
-    weight(r, c) { return this._wts[r][c]; }
+    weight(r, c)  { return this._wts[r][c]; }
     isHeavy(r, c) { return this._wts[r][c] > 1 && !this.isWall(r, c); }
-
     randomFree(rng) {
       let r, c;
       do {
@@ -171,8 +165,7 @@
   }
 
   // ── Ajan sınıfı ──────────────────────────────────────────
-  const TRAIL_LEN = 7;
-
+  const TRAIL_LEN = 8;
   class Agent {
     constructor(id, start, end, color) {
       this.id         = id;
@@ -188,9 +181,7 @@
       this.waitCount  = 0;
       this.trail      = [];
     }
-
     setPath(path) { this.path = path; this.step = 0; }
-
     advance() {
       if (this.arrived || !this.path) return;
       this.trail.push([...this.pos]);
@@ -206,15 +197,7 @@
     }
   }
 
-  // ── Simülasyon durumu ─────────────────────────────────────
-  let simA = null, simB = null;
-  let rafId = null;
-  let tickInterval = null;
-  let selectedMap   = 0;
-  let selectedCount = 5;
-  let running = false;
-  let globalFrame = 0;
-
+  // ── RNG ──────────────────────────────────────────────────
   function makeRng(seed) {
     let s = seed;
     return function () {
@@ -223,278 +206,556 @@
     };
   }
 
+  // ── Backend yardımcı fonksiyonu ───────────────────────────
+  async function fetchPaths(algoKey, mapIndex, agentCount) {
+    const res = await fetch('http://localhost:5000/api/simulate', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ algorithm: algoKey, map: mapIndex, agents: agentCount, seed: 42 }),
+    });
+    if (!res.ok) throw new Error(`Backend ${res.status}`);
+    return res.json();
+  }
+
   // ── Simülasyon nesnesi ────────────────────────────────────
-  function createSim(canvasEl, algoKey, mapIndex, agentCount) {
+  // precomputedPaths: backend'den gelen [[r,c],...] dizileri (null ise local algoritma çalışır)
+  function createSim(canvasEl, algoKey, mapIndex, agentCount, precomputedPaths = null) {
     const grid   = new Grid(mapIndex);
     const rng    = makeRng(42);
     const algoFn = window.Algorithms[algoKey];
-
     const agents = [];
     for (let i = 0; i < agentCount; i++) {
       const start = grid.randomFree(rng);
       const end   = grid.randomFree(rng);
       const agent = new Agent(i, start, end, COLORS[i % COLORS.length]);
-      const path  = algoFn ? algoFn(grid, start, end, i) : null;
+      const path  = precomputedPaths
+        ? precomputedPaths[i]
+        : (algoFn ? algoFn(grid, start, end, i) : null);
       agent.setPath(path || [start]);
       agents.push(agent);
     }
-
     return { grid, agents, algoKey, collisions: 0, tick: 0, done: false, startTime: null, endTime: null };
   }
 
-  // ── Canvas boyutlandırma ──────────────────────────────────
-  function fitCanvas(canvasEl) {
-    const wrap = canvasEl.parentElement;
-    const w    = wrap.clientWidth;
-    if (!w) return;
-    const h    = Math.round(w * (ROWS / COLS));
-    canvasEl.width  = w;
-    canvasEl.height = h;
-    canvasEl.style.height = h + 'px';
-  }
-
-  // ── Yardımcı: yuvarlatılmış dikdörtgen ───────────────────
-  function roundRect(ctx, x, y, w, h, r) {
-    ctx.beginPath();
-    ctx.moveTo(x + r, y);
-    ctx.lineTo(x + w - r, y);
-    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-    ctx.lineTo(x + w, y + h - r);
-    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-    ctx.lineTo(x + r, y + h);
-    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-    ctx.lineTo(x, y + r);
-    ctx.quadraticCurveTo(x, y, x + r, y);
-    ctx.closePath();
-  }
-
-  // ── Çizim ─────────────────────────────────────────────────
-  function drawSim(canvasEl, sim) {
-    const ctx = canvasEl.getContext('2d');
-    const W   = canvasEl.width;
-    const H   = canvasEl.height;
-    const cw  = W / sim.grid.cols;
-    const ch  = H / sim.grid.rows;
-
-    ctx.clearRect(0, 0, W, H);
-
-    // Zemin: hücreler
-    for (let r = 0; r < sim.grid.rows; r++) {
-      for (let c = 0; c < sim.grid.cols; c++) {
-        if (sim.grid.isWall(r, c)) {
-          ctx.fillStyle = '#05050e';
-        } else if (sim.grid.isHeavy(r, c)) {
-          ctx.fillStyle = '#070d18';
-        } else {
-          ctx.fillStyle = '#0b0b18';
-        }
-        ctx.fillRect(c * cw, r * ch, cw, ch);
-      }
+  // ── Three.js 3D Renderer ──────────────────────────────────
+  class ThreeSimRenderer {
+    constructor(canvasEl, hudId) {
+      this.canvas   = canvasEl;
+      this.hudId    = hudId; // 'a' veya 'b'
+      this.scene    = null;
+      this.camera   = null;
+      this.renderer = null;
+      this.controls = null;
+      this.sceneObjects = []; // haritalanabilir nesneler (clearScene'de silinir)
+      this.agentMeshes  = new Map();
+      this.targetMeshes = new Map();
+      this.trailLines   = new Map();
+      this.initialized  = false;
     }
 
-    // Izgara çizgileri
-    ctx.strokeStyle = 'rgba(0,212,255,0.06)';
-    ctx.lineWidth   = 0.5;
-    for (let r = 0; r <= sim.grid.rows; r++) {
-      ctx.beginPath(); ctx.moveTo(0, r * ch); ctx.lineTo(W, r * ch); ctx.stroke();
-    }
-    for (let c = 0; c <= sim.grid.cols; c++) {
-      ctx.beginPath(); ctx.moveTo(c * cw, 0); ctx.lineTo(c * cw, H); ctx.stroke();
-    }
+    init() {
+      const wrap = this.canvas.parentElement;
+      const w    = (wrap ? (wrap.clientWidth || wrap.offsetWidth) : 0) || 640;
+      const h    = Math.round(w * (ROWS / COLS));
+      this.canvas.width  = w;
+      this.canvas.height = h;
+      this.canvas.style.height = h + 'px';
 
-    // Hedef noktaları — pulsing ring
-    const pulse = 0.5 + 0.5 * Math.sin(globalFrame * 0.08);
-    sim.agents.forEach((ag) => {
-      if (ag.arrived) return;
-      const [er, ec] = ag.end;
-      const px  = ec * cw + cw / 2;
-      const py  = er * ch + ch / 2;
-      const rad = Math.min(cw, ch) * 0.28;
-
-      ctx.beginPath();
-      ctx.arc(px, py, rad + pulse * rad * 0.6, 0, Math.PI * 2);
-      ctx.strokeStyle = ag.color;
-      ctx.globalAlpha = 0.25 + pulse * 0.2;
-      ctx.lineWidth   = 0.8;
-      ctx.stroke();
-      ctx.globalAlpha = 1;
-
-      ctx.beginPath();
-      ctx.arc(px, py, rad * 0.3, 0, Math.PI * 2);
-      ctx.fillStyle = ag.color;
-      ctx.globalAlpha = 0.5;
-      ctx.fill();
-      ctx.globalAlpha = 1;
-    });
-
-    // Trail — iz bırakma
-    sim.agents.forEach((ag) => {
-      if (ag.arrived || ag.trail.length === 0) return;
-      ag.trail.forEach((tpos, ti) => {
-        const [tr, tc] = tpos;
-        const px    = tc * cw + cw / 2;
-        const py    = tr * ch + ch / 2;
-        const ratio = (ti + 1) / ag.trail.length;
-        const alpha = ratio * 0.28;
-        const r2    = Math.min(cw, ch) * 0.18 * ratio;
-        ctx.beginPath();
-        ctx.arc(px, py, r2, 0, Math.PI * 2);
-        ctx.fillStyle = ag.color;
-        ctx.globalAlpha = alpha;
-        ctx.fill();
-        ctx.globalAlpha = 1;
+      // Renderer
+      this.renderer = new THREE.WebGLRenderer({
+        canvas: this.canvas,
+        antialias: true,
+        powerPreference: 'high-performance',
       });
-    });
+      this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      this.renderer.setSize(w, h);
+      this.renderer.shadowMap.enabled = false;
 
-    // Ajanlar
-    sim.agents.forEach((ag) => {
-      const [r, c] = ag.pos;
-      const px     = c * cw + cw / 2;
-      const py     = r * ch + ch / 2;
-      const radius = Math.min(cw, ch) * 0.38;
+      // Scene
+      this.scene = new THREE.Scene();
+      this.scene.background = new THREE.Color(0x05050e);
+      this.scene.fog = new THREE.FogExp2(0x05050e, 0.018);
 
-      if (ag.flashTimer > 0) {
-        const a = ag.flashTimer / 8;
-        ctx.beginPath();
-        ctx.arc(px, py, radius * 3.2, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(255,55,55,${a * 0.25})`;
-        ctx.fill();
-        ctx.beginPath();
-        ctx.arc(px, py, radius * 2.5, 0, Math.PI * 2);
-        ctx.strokeStyle = `rgba(255,80,80,${a * 0.9})`;
-        ctx.lineWidth   = 1.5;
-        ctx.stroke();
-        ag.flashTimer--;
-      }
+      // Camera — perspektif, yukarıdan diagonal
+      this.camera = new THREE.PerspectiveCamera(42, w / h, 0.1, 300);
+      this.camera.position.set(COLS * 0.55, ROWS * 0.85, ROWS * 0.70);
+      this.camera.lookAt(0, 0, 0);
 
-      if (ag.arrived) {
-        ctx.beginPath();
-        ctx.arc(px, py, radius * 0.4, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(255,255,255,0.12)';
-        ctx.fill();
-        return;
-      }
+      // OrbitControls — mouse ile döndür/yaklaş
+      this.controls = new THREE.OrbitControls(this.camera, this.canvas);
+      this.controls.enableDamping    = true;
+      this.controls.dampingFactor    = 0.07;
+      this.controls.minDistance      = 6;
+      this.controls.maxDistance      = 90;
+      this.controls.maxPolarAngle    = Math.PI / 2.1;
+      this.controls.target.set(0, 0, 0);
+      this.controls.update();
 
-      ctx.beginPath();
-      ctx.arc(px, py, radius * 1.9, 0, Math.PI * 2);
-      ctx.fillStyle = ag.color + '18';
-      ctx.fill();
+      // Işıklandırma (kalıcı — clearScene'de silinmez)
+      const ambient = new THREE.AmbientLight(0x223355, 0.75);
+      this.scene.add(ambient);
 
-      ctx.beginPath();
-      ctx.arc(px, py, radius, 0, Math.PI * 2);
-      ctx.fillStyle = ag.color;
-      ctx.fill();
+      const sun = new THREE.DirectionalLight(0xffffff, 0.9);
+      sun.position.set(COLS * 0.4, 35, ROWS * 0.3);
+      this.scene.add(sun);
 
-      ctx.beginPath();
-      ctx.arc(px, py, radius * 0.32, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(255,255,255,0.45)';
-      ctx.fill();
+      const fill = new THREE.DirectionalLight(0x112244, 0.35);
+      fill.position.set(-COLS * 0.4, 15, -ROWS * 0.4);
+      this.scene.add(fill);
 
-      if (ag.path && ag.step + 1 < ag.path.length) {
-        const [nr, nc] = ag.path[Math.min(ag.step + 1, ag.path.length - 1)];
-        const dr = nr - r;
-        const dc = nc - c;
-        const len = Math.sqrt(dr * dr + dc * dc);
-        if (len > 0) {
-          const nx = (dc / len) * radius * 0.95;
-          const ny = (dr / len) * radius * 0.95;
-          ctx.beginPath();
-          ctx.moveTo(px, py);
-          ctx.lineTo(px + nx, py + ny);
-          ctx.strokeStyle = 'rgba(0,0,0,0.6)';
-          ctx.lineWidth   = 1.8;
-          ctx.lineCap     = 'round';
-          ctx.stroke();
+      this.initialized = true;
+    }
+
+    // grid koordinatı → 3D dünya pozisyonu (merkez = 0,0,0)
+    _toWorld(r, c) {
+      return new THREE.Vector3(
+        c - COLS / 2 + 0.5,
+        0,
+        r - ROWS / 2 + 0.5
+      );
+    }
+
+    // Among Us karakteri — gövde + kafa + vizör + sırt çantası
+    _createAmongusAgent(hexColor, opacity) {
+      const op  = opacity === undefined ? 1.0 : opacity;
+      const c   = new THREE.Color(hexColor);
+      const grp = new THREE.Group();
+
+      const bodyMat = new THREE.MeshStandardMaterial({
+        color: c, emissive: c, emissiveIntensity: 0.18,
+        roughness: 0.38, metalness: 0.42,
+        transparent: op < 1, opacity: op,
+      });
+
+      // Gövde (yassı elipsoid — bean şekli)
+      const bodyGeo = new THREE.SphereGeometry(0.26, 16, 12);
+      const body    = new THREE.Mesh(bodyGeo, bodyMat);
+      body.scale.set(0.88, 1.15, 0.76);
+      body.position.y = 0.18;
+      grp.add(body);
+
+      // Kafa (gövdeden biraz büyük, üste)
+      const headGeo = new THREE.SphereGeometry(0.22, 14, 10);
+      const head    = new THREE.Mesh(headGeo, bodyMat);
+      head.scale.set(1.0, 0.92, 0.85);
+      head.position.set(0.035, 0.44, 0);
+      grp.add(head);
+
+      // Vizör (cam efekti — açık mavi, şeffaf)
+      const visorMat = new THREE.MeshStandardMaterial({
+        color: 0x99eeff, emissive: 0x44bbdd, emissiveIntensity: 0.55,
+        roughness: 0.05, metalness: 0.1,
+        transparent: true, opacity: op < 1 ? op * 0.72 : 0.78,
+      });
+      const visorGeo = new THREE.SphereGeometry(0.14, 12, 8);
+      const visor    = new THREE.Mesh(visorGeo, visorMat);
+      visor.scale.set(0.82, 0.56, 0.32);
+      visor.position.set(0.13, 0.46, 0.17);
+      grp.add(visor);
+
+      // Sırt çantası
+      const packMat = new THREE.MeshStandardMaterial({
+        color: c.clone().multiplyScalar(0.62),
+        roughness: 0.65, metalness: 0.2,
+        transparent: op < 1, opacity: op,
+      });
+      const packGeo = new THREE.BoxGeometry(0.17, 0.21, 0.11);
+      const pack    = new THREE.Mesh(packGeo, packMat);
+      pack.position.set(-0.03, 0.22, -0.22);
+      grp.add(pack);
+
+      // Ayaklar (küçük iki silindir)
+      const legMat = new THREE.MeshStandardMaterial({
+        color: c.clone().multiplyScalar(0.55),
+        roughness: 0.7, metalness: 0.1,
+        transparent: op < 1, opacity: op,
+      });
+      const legGeo = new THREE.CylinderGeometry(0.065, 0.07, 0.12, 8);
+      [-0.10, 0.10].forEach(xOff => {
+        const leg = new THREE.Mesh(legGeo, legMat);
+        leg.position.set(xOff, 0.00, 0.04);
+        grp.add(leg);
+      });
+
+      grp._bodyMat  = bodyMat;
+      grp._visorMat = visorMat;
+      return grp;
+    }
+
+    buildMap(grid) {
+      // Zemin
+      const floorGeo = new THREE.PlaneGeometry(COLS, ROWS);
+      const floorMat = new THREE.MeshStandardMaterial({
+        color: 0x0b0b1a, roughness: 0.95, metalness: 0.0,
+      });
+      const floor = new THREE.Mesh(floorGeo, floorMat);
+      floor.rotation.x = -Math.PI / 2;
+      floor.position.y = -0.02;
+      this.scene.add(floor);
+      this.sceneObjects.push(floor);
+
+      // Grid çizgisi — ince mavi
+      const gh = new THREE.GridHelper(
+        Math.max(COLS, ROWS), Math.max(COLS, ROWS),
+        0x0a1828, 0x0a1828
+      );
+      gh.position.y = 0.01;
+      this.scene.add(gh);
+      this.sceneObjects.push(gh);
+
+      // Duvarlar — InstancedMesh (tek draw call, performanslı)
+      const wallList = [];
+      for (let r = 0; r < grid.rows; r++) {
+        for (let c = 0; c < grid.cols; c++) {
+          if (grid.isWall(r, c)) wallList.push([r, c]);
         }
       }
-    });
 
-    // İstatistik overlay
-    const arrived = sim.agents.filter(a => a.arrived).length;
-    const oW = 164, oH = 76, ox = 8, oy = 8;
+      const wallGeo = new THREE.BoxGeometry(0.94, 2.2, 0.94);
+      const wallMat = new THREE.MeshStandardMaterial({
+        color: 0x0e0e18, roughness: 0.9, metalness: 0.15,
+        emissive: 0x050508, emissiveIntensity: 1,
+      });
+      const walls = new THREE.InstancedMesh(wallGeo, wallMat, wallList.length);
+      const dummy = new THREE.Object3D();
+      wallList.forEach(([r, c], i) => {
+        const wp = this._toWorld(r, c);
+        dummy.position.set(wp.x, 1.1, wp.z);
+        dummy.updateMatrix();
+        walls.setMatrixAt(i, dummy.matrix);
+      });
+      walls.instanceMatrix.needsUpdate = true;
+      this.scene.add(walls);
+      this.sceneObjects.push(walls);
+    }
 
-    ctx.fillStyle = 'rgba(5,5,18,0.82)';
-    roundRect(ctx, ox, oy, oW, oH, 8);
-    ctx.fill();
+    setupAgents(agents) {
+      agents.forEach(ag => {
+        const color = new THREE.Color(ag.color);
 
-    ctx.strokeStyle = 'rgba(0,212,255,0.18)';
-    ctx.lineWidth   = 0.8;
-    roundRect(ctx, ox, oy, oW, oH, 8);
-    ctx.stroke();
+        // Among Us karakteri
+        const grp = this._createAmongusAgent(ag.color, 1.0);
+        const wp  = this._toWorld(ag.pos[0], ag.pos[1]);
+        grp.position.set(wp.x, 0, wp.z);
+        grp._prevPos = grp.position.clone();
+        this.scene.add(grp);
+        this.sceneObjects.push(grp);
+        this.agentMeshes.set(ag.id, grp);
 
-    ctx.fillStyle   = '#555577';
-    ctx.font        = '600 9px Space Grotesk, sans-serif';
-    ctx.textBaseline = 'middle';
-    const labels = ['ADIM', 'ÇARPIŞMA', 'ULAŞAN'];
-    labels.forEach((lbl, i) => ctx.fillText(lbl, ox + 10, oy + 16 + i * 22));
+        // Hedef halkası — yerde yassı torus
+        const ringGeo = new THREE.TorusGeometry(0.34, 0.055, 6, 28);
+        const ringMat = new THREE.MeshStandardMaterial({
+          color,
+          emissive: color,
+          emissiveIntensity: 0.8,
+          transparent: true,
+          opacity: 0.85,
+        });
+        const ring = new THREE.Mesh(ringGeo, ringMat);
+        const tp   = this._toWorld(ag.end[0], ag.end[1]);
+        ring.position.set(tp.x, 0.07, tp.z);
+        ring.rotation.x = -Math.PI / 2;
+        this.scene.add(ring);
+        this.sceneObjects.push(ring);
+        this.targetMeshes.set(ag.id, ring);
 
-    ctx.fillStyle   = '#e8e4df';
-    ctx.font        = '700 12px Space Grotesk, sans-serif';
-    ctx.textAlign   = 'right';
-    const vals = [String(sim.tick), String(sim.collisions), `${arrived} / ${sim.agents.length}`];
-    vals.forEach((v, i) => ctx.fillText(v, ox + oW - 10, oy + 16 + i * 22));
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'alphabetic';
+        // Trail çizgisi
+        const trailGeo = new THREE.BufferGeometry();
+        const trailMat = new THREE.LineBasicMaterial({
+          color,
+          transparent: true,
+          opacity: 0.35,
+        });
+        const line = new THREE.Line(trailGeo, trailMat);
+        this.scene.add(line);
+        this.sceneObjects.push(line);
+        this.trailLines.set(ag.id, line);
+      });
+    }
+
+    showPreview(agentData) {
+      agentData.forEach((data, i) => {
+        const color = new THREE.Color(data.color);
+
+        // Yarı saydam Among Us karakteri
+        const grp = this._createAmongusAgent(data.color, 0.55);
+        const wp  = this._toWorld(data.start[0], data.start[1]);
+        grp.position.set(wp.x, 0, wp.z);
+        this.scene.add(grp);
+        this.sceneObjects.push(grp);
+        this.agentMeshes.set(-i - 1, grp);
+
+        // Hedef halkası
+        const ringGeo = new THREE.TorusGeometry(0.30, 0.045, 6, 24);
+        const ringMat = new THREE.MeshStandardMaterial({
+          color, emissive: color, emissiveIntensity: 0.6,
+          transparent: true, opacity: 0.45,
+        });
+        const ring = new THREE.Mesh(ringGeo, ringMat);
+        const tp   = this._toWorld(data.end[0], data.end[1]);
+        ring.position.set(tp.x, 0.06, tp.z);
+        ring.rotation.x = -Math.PI / 2;
+        this.scene.add(ring);
+        this.sceneObjects.push(ring);
+        this.targetMeshes.set(-i - 1, ring);
+      });
+    }
+
+    update(sim, frame) {
+      if (!this.initialized || !sim) return;
+
+      this.controls.update();
+      const time = frame * 0.04;
+
+      sim.agents.forEach(ag => {
+        const mesh  = this.agentMeshes.get(ag.id);
+        const ring  = this.targetMeshes.get(ag.id);
+        const trail = this.trailLines.get(ag.id);
+        if (!mesh) return;
+
+        // Ajan pozisyonu — smooth lerp
+        const wp     = this._toWorld(ag.pos[0], ag.pos[1]);
+        const target = new THREE.Vector3(wp.x, 0, wp.z);
+        mesh.position.lerp(target, 0.22);
+
+        // Hareket yönüne döndür (Among Us yürüme efekti)
+        if (mesh._prevPos) {
+          const dx = mesh.position.x - mesh._prevPos.x;
+          const dz = mesh.position.z - mesh._prevPos.z;
+          if (Math.abs(dx) + Math.abs(dz) > 0.005) {
+            mesh.rotation.y = Math.atan2(dx, dz);
+          }
+        }
+        if (!mesh._prevPos) mesh._prevPos = new THREE.Vector3();
+        mesh._prevPos.copy(mesh.position);
+
+        // Yürüme bobbing animasyonu
+        if (!ag.arrived && !ag.flashTimer) {
+          mesh.position.y = Math.sin(time * 6 + ag.id * 1.3) * 0.028;
+        }
+
+        // Çarpışma flash — tüm body malzemeleri kırmızı
+        if (ag.flashTimer > 0) {
+          if (mesh._bodyMat) {
+            mesh._bodyMat.emissive.setHex(0xff1111);
+            mesh._bodyMat.emissiveIntensity = 1.1;
+          }
+          mesh.scale.setScalar(1.0 + (ag.flashTimer / 10) * 0.38);
+          mesh.position.y = (ag.flashTimer / 10) * 0.18;
+        } else if (ag.arrived) {
+          if (mesh._bodyMat) {
+            mesh._bodyMat.emissive.set(ag.color);
+            mesh._bodyMat.emissiveIntensity = 0.04;
+            mesh._bodyMat.opacity = 0.38;
+            mesh._bodyMat.transparent = true;
+          }
+          mesh.scale.setScalar(0.6);
+          mesh.position.y = 0;
+        } else {
+          if (mesh._bodyMat) {
+            mesh._bodyMat.emissive.set(ag.color);
+            mesh._bodyMat.emissiveIntensity = 0.18;
+          }
+          mesh.scale.setScalar(1.0);
+        }
+
+        // Hedef halka — pulsing
+        if (ring) {
+          if (ag.arrived) {
+            ring.visible = false;
+          } else {
+            const pulse = 1.0 + Math.sin(time + ag.id * 0.8) * 0.10;
+            ring.scale.setScalar(pulse);
+          }
+        }
+
+        // Trail güncelle
+        if (trail && ag.trail.length > 1) {
+          const pts = ag.trail.map(([tr, tc]) => {
+            const p = this._toWorld(tr, tc);
+            return new THREE.Vector3(p.x, 0.06, p.z);
+          });
+          pts.push(new THREE.Vector3(mesh.position.x, 0.06, mesh.position.z));
+          trail.geometry.setFromPoints(pts);
+        }
+      });
+
+      // HUD güncelle
+      const arrived = sim.agents.filter(a => a.arrived).length;
+      const tick    = document.getElementById(`hud-${this.hudId}-tick`);
+      const coll    = document.getElementById(`hud-${this.hudId}-coll`);
+      const arr     = document.getElementById(`hud-${this.hudId}-arr`);
+      if (tick) tick.textContent = sim.tick;
+      if (coll) coll.textContent = sim.collisions;
+      if (arr)  arr.textContent  = `${arrived}/${sim.agents.length}`;
+
+      this.renderer.render(this.scene, this.camera);
+    }
+
+    resize() {
+      const wrap = this.canvas.parentElement;
+      if (!wrap) return;
+      const w = wrap.clientWidth || wrap.offsetWidth || 640;
+      if (!w) return;
+      const h = Math.round(w * (ROWS / COLS));
+      this.canvas.width  = w;
+      this.canvas.height = h;
+      this.canvas.style.height = h + 'px';
+      if (this.renderer) this.renderer.setSize(w, h);
+      if (this.camera) {
+        this.camera.aspect = w / h;
+        this.camera.updateProjectionMatrix();
+      }
+    }
+
+    clearScene() {
+      this.sceneObjects.forEach(obj => {
+        this.scene.remove(obj);
+        if (obj.isGroup) {
+          obj.traverse(child => {
+            if (child.geometry) child.geometry.dispose();
+            if (child.material) child.material.dispose();
+          });
+        } else {
+          if (obj.geometry) obj.geometry.dispose();
+          if (obj.material) {
+            if (Array.isArray(obj.material)) obj.material.forEach(m => m.dispose());
+            else obj.material.dispose();
+          }
+        }
+      });
+      this.sceneObjects = [];
+      this.agentMeshes.clear();
+      this.targetMeshes.clear();
+      this.trailLines.clear();
+    }
+
+    dispose() {
+      this.clearScene();
+      if (this.controls) this.controls.dispose();
+      if (this.renderer) this.renderer.dispose();
+      this.initialized = false;
+    }
   }
 
-  // ── Tek adım — COOPERATIVE PATHFINDING ───────────────────
-  // Dijkstra ve A*: önde başka ajan varsa bekler (max 3 tick) → az çarpışma
-  // BFS ve DFS: hiç beklemez, devam eder → çok çarpışma
+  // ── Simülasyon durumu ─────────────────────────────────────
+  let simA = null, simB = null;
+  let rendererA = null, rendererB = null;
+  let previewRafId = null;
+  let rafId = null;
+  let tickInterval = null;
+  let selectedMap   = 0;
+  let selectedCount = 5;
+  let running = false;
+  let globalFrame = 0;
+
+  const canvasA = document.getElementById('canvas-a');
+  const canvasB = document.getElementById('canvas-b');
+
+  // ── Renderer başlat ──────────────────────────────────────
+  function initRenderers() {
+    if (!rendererA) {
+      rendererA = new ThreeSimRenderer(canvasA, 'a');
+      rendererA.init();
+    }
+    if (!rendererB) {
+      rendererB = new ThreeSimRenderer(canvasB, 'b');
+      rendererB.init();
+    }
+  }
+
+  // ── Preview döngüsü — orbit kontrolleri çalışsın ─────────
+  function startPreviewLoop() {
+    if (previewRafId) cancelAnimationFrame(previewRafId);
+    let resizeChecked = false;
+    function loop() {
+      if (running) { previewRafId = null; return; }
+      // İlk birkaç frame'de canvas boyutu sıfır olabilir — resize ile düzelt
+      if (!resizeChecked) {
+        if (rendererA) rendererA.resize();
+        if (rendererB) rendererB.resize();
+        resizeChecked = true;
+      }
+      if (rendererA && rendererA.initialized) {
+        rendererA.controls.update();
+        rendererA.renderer.render(rendererA.scene, rendererA.camera);
+      }
+      if (rendererB && rendererB.initialized) {
+        rendererB.controls.update();
+        rendererB.renderer.render(rendererB.scene, rendererB.camera);
+      }
+      previewRafId = requestAnimationFrame(loop);
+    }
+    loop();
+  }
+
+  // ── Preview ──────────────────────────────────────────────
+  function drawPreview() {
+    initRenderers();
+    // Layout tam oturmuşsa doğrudan çiz; değilse bir sonraki frame'de resize'la
+    rendererA.resize();
+    rendererB.resize();
+
+    const algos = window.selectedAlgorithms;
+    const names = { bfs:'BFS', dfs:'DFS', dijkstra:'Dijkstra', astar:'A*' };
+    const labelA = document.getElementById('canvas-label-a');
+    const labelB = document.getElementById('canvas-label-b');
+    if (algos && algos.length >= 2) {
+      if (labelA) labelA.textContent = names[algos[0]] || algos[0];
+      if (labelB) labelB.textContent = names[algos[1]] || algos[1];
+    }
+
+    const grid = new Grid(selectedMap);
+    const rng  = makeRng(42);
+    const agentData = [];
+    for (let i = 0; i < selectedCount; i++) {
+      agentData.push({
+        start: grid.randomFree(rng),
+        end:   grid.randomFree(rng),
+        color: COLORS[i % COLORS.length],
+      });
+    }
+
+    rendererA.clearScene();
+    rendererB.clearScene();
+    rendererA.buildMap(new Grid(selectedMap));
+    rendererB.buildMap(new Grid(selectedMap));
+    rendererA.showPreview(agentData);
+    rendererB.showPreview(agentData);
+    startPreviewLoop();
+
+    // Sayfa layout gecikmesini tolere etmek için 200ms sonra da resize
+    setTimeout(() => {
+      rendererA.resize();
+      rendererB.resize();
+    }, 200);
+  }
+  window.drawSimPreview = drawPreview;
+
+  // ── Tick — tüm ajanlar ilerler ────────────────────────────
   function tickSim(sim) {
     if (sim.done) return;
     sim.tick++;
-
-    const isCooperative = (sim.algoKey === 'dijkstra' || sim.algoKey === 'astar');
-
-    if (isCooperative) {
-      // Mevcut pozisyonlar kümesi
-      const occupied = new Set();
-      sim.agents.forEach(ag => {
-        if (!ag.arrived) occupied.add(`${ag.pos[0]},${ag.pos[1]}`);
-      });
-
-      sim.agents.forEach(ag => {
-        if (ag.arrived || !ag.path) return;
-        const nextIdx = ag.step + 1;
-
-        // Hedefe ulaştıysa normal advance
-        if (nextIdx >= ag.path.length) {
-          ag.waitCount = 0;
-          ag.advance();
-          return;
-        }
-
-        const [nr, nc] = ag.path[nextIdx];
-        const nk = `${nr},${nc}`;
-        const forceMove = ag.waitCount >= 3;
-
-        if (!occupied.has(nk) || forceMove) {
-          ag.waitCount = 0;
-          ag.advance();
-        } else {
-          // Bekle
-          ag.waitCount++;
-          ag.totalSteps++;
-        }
-      });
-    } else {
-      // BFS/DFS — beklemez, doğrudan ilerler
-      sim.agents.forEach(ag => ag.advance());
-    }
+    sim.agents.forEach(ag => ag.advance());
 
     // Çarpışma tespiti
     const posMap = new Map();
-    sim.agents.forEach((ag) => {
+    sim.agents.forEach(ag => {
       if (ag.arrived) return;
       const key = `${ag.pos[0]},${ag.pos[1]}`;
       if (!posMap.has(key)) posMap.set(key, []);
       posMap.get(key).push(ag);
     });
-    posMap.forEach((group) => {
+    posMap.forEach(group => {
       if (group.length >= 2) {
         sim.collisions++;
         group.forEach(ag => { ag.collided = true; ag.flashTimer = 10; });
       }
+    });
+
+    // flashTimer azalt — her tick'te bir adım düşer, 0'da efekt söner
+    sim.agents.forEach(ag => {
+      if (ag.flashTimer > 0) ag.flashTimer--;
     });
 
     if (sim.agents.every(a => a.arrived)) {
@@ -504,14 +765,11 @@
   }
 
   // ── Animasyon döngüsü ─────────────────────────────────────
-  const canvasA = document.getElementById('canvas-a');
-  const canvasB = document.getElementById('canvas-b');
-
   function renderLoop() {
     if (!running) return;
     globalFrame++;
-    if (simA) drawSim(canvasA, simA);
-    if (simB) drawSim(canvasB, simB);
+    if (rendererA && simA) rendererA.update(simA, globalFrame);
+    if (rendererB && simB) rendererB.update(simB, globalFrame);
     rafId = requestAnimationFrame(renderLoop);
   }
 
@@ -523,7 +781,6 @@
       if (!running) return;
       if (simA && !simA.done) tickSim(simA);
       if (simB && !simB.done) tickSim(simB);
-
       const bothDone = (!simA || simA.done) && (!simB || simB.done);
       if (bothDone) { stopSim(); showStats(); }
     }, TICK_MS);
@@ -533,15 +790,18 @@
     running = false;
     clearInterval(tickInterval); tickInterval = null;
     if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
-    if (simA && canvasA) drawSim(canvasA, simA);
-    if (simB && canvasB) drawSim(canvasB, simB);
+    // Son kareyi render et
+    if (rendererA && simA) rendererA.update(simA, globalFrame);
+    if (rendererB && simB) rendererB.update(simB, globalFrame);
     const sb = document.getElementById('sim-start');
     const rb = document.getElementById('sim-reset');
     if (rb) rb.style.display = 'inline-flex';
     if (sb) { sb.textContent = 'Simülasyonu Başlat'; sb.disabled = false; }
+    // Orbit kontrolü hâlâ çalışsın
+    startPreviewLoop();
   }
 
-  // ── İstatistikleri göster ─────────────────────────────────
+  // ── İstatistikler ─────────────────────────────────────────
   function showStats() {
     const statsEl = document.getElementById('stats');
     if (!statsEl) return;
@@ -553,12 +813,14 @@
     document.getElementById('stats-algo-a').textContent = algoA === 'ASTAR' ? 'A*' : algoA;
     document.getElementById('stats-algo-b').textContent = algoB === 'ASTAR' ? 'A*' : algoB;
 
-    const stepsA   = simA ? simA.agents.reduce((s, a) => s + a.totalSteps, 0) : 0;
-    const stepsB   = simB ? simB.agents.reduce((s, a) => s + a.totalSteps, 0) : 0;
-    const arrivedA = simA ? simA.agents.filter(a => a.arrived).length : 0;
-    const arrivedB = simB ? simB.agents.filter(a => a.arrived).length : 0;
-    const durA     = simA && simA.endTime ? Math.round(simA.endTime - simA.startTime) : 0;
-    const durB     = simB && simB.endTime ? Math.round(simB.endTime - simB.startTime) : 0;
+    const stepsA    = simA ? simA.agents.reduce((s, a) => s + a.totalSteps, 0) : 0;
+    const stepsB    = simB ? simB.agents.reduce((s, a) => s + a.totalSteps, 0) : 0;
+    const arrivedA  = simA ? simA.agents.filter(a => a.arrived).length : 0;
+    const arrivedB  = simB ? simB.agents.filter(a => a.arrived).length : 0;
+    const durA      = simA && simA.endTime ? Math.round(simA.endTime - simA.startTime) : 0;
+    const durB      = simB && simB.endTime ? Math.round(simB.endTime - simB.startTime) : 0;
+    const collidedA = simA ? simA.agents.filter(a => a.collided).length : 0;
+    const collidedB = simB ? simB.agents.filter(a => a.collided).length : 0;
 
     document.getElementById('stat-collision-a').textContent = simA ? simA.collisions : '—';
     document.getElementById('stat-collision-b').textContent = simB ? simB.collisions : '—';
@@ -566,10 +828,10 @@
     document.getElementById('stat-steps-b').textContent     = stepsB;
     document.getElementById('stat-time-a').textContent      = durA + ' ms';
     document.getElementById('stat-time-b').textContent      = durB + ' ms';
-    document.getElementById('stat-arrived-a').textContent   = `${arrivedA} / ${simA ? simA.agents.length : 0}`;
-    document.getElementById('stat-arrived-b').textContent   = `${arrivedB} / ${simB ? simB.agents.length : 0}`;
+    document.getElementById('stat-arrived-a').textContent   = `${arrivedA}/${simA ? simA.agents.length : 0}`;
+    document.getElementById('stat-arrived-b').textContent   = `${arrivedB}/${simB ? simB.agents.length : 0}`;
 
-    function markWinner(idA, idB, aVal, bVal, lowerIsBetter = true) {
+    function markWinner(idA, idB, aVal, bVal, lowerIsBetter) {
       const elA = document.getElementById(idA);
       const elB = document.getElementById(idB);
       if (!elA || !elB) return;
@@ -578,7 +840,7 @@
       if (aVal === bVal) return;
       const aWins = lowerIsBetter ? aVal < bVal : aVal > bVal;
       elA.classList.add(aWins ? 'winner' : 'loser');
-      elB.classList.add(aWins ? 'loser' : 'winner');
+      elB.classList.add(aWins ? 'loser'  : 'winner');
     }
 
     markWinner('stat-collision-a', 'stat-collision-b', simA ? simA.collisions : 0, simB ? simB.collisions : 0, true);
@@ -595,116 +857,15 @@
       algoKeyB:   simB ? simB.algoKey : '',
       collisionA: simA ? simA.collisions : 0,
       collisionB: simB ? simB.collisions : 0,
+      collidedA, collidedB,
+      agentCount: selectedCount,
       stepsA, stepsB, durA, durB,
     };
     if (typeof window.renderCharts === 'function') window.renderCharts();
   }
 
-  // ── Önizleme: harita/ajan değişince canvas'ı göster ──────
-  function drawPreviewCanvas(canvasEl, grid, agentData) {
-    if (!canvasEl || !canvasEl.width) return;
-    const ctx = canvasEl.getContext('2d');
-    const W   = canvasEl.width;
-    const H   = canvasEl.height;
-    const cw  = W / grid.cols;
-    const ch  = H / grid.rows;
-
-    ctx.clearRect(0, 0, W, H);
-
-    // Zemin
-    for (let r = 0; r < grid.rows; r++) {
-      for (let c = 0; c < grid.cols; c++) {
-        if (grid.isWall(r, c)) ctx.fillStyle = '#05050e';
-        else if (grid.isHeavy(r, c)) ctx.fillStyle = '#070d18';
-        else ctx.fillStyle = '#0b0b18';
-        ctx.fillRect(c * cw, r * ch, cw, ch);
-      }
-    }
-
-    // Izgara
-    ctx.strokeStyle = 'rgba(0,212,255,0.05)';
-    ctx.lineWidth   = 0.5;
-    for (let r = 0; r <= grid.rows; r++) {
-      ctx.beginPath(); ctx.moveTo(0, r * ch); ctx.lineTo(W, r * ch); ctx.stroke();
-    }
-    for (let c = 0; c <= grid.cols; c++) {
-      ctx.beginPath(); ctx.moveTo(c * cw, 0); ctx.lineTo(c * cw, H); ctx.stroke();
-    }
-
-    // Hedefler ve ajanlar
-    agentData.forEach(({ start, end, color }) => {
-      // Hedef halkası
-      const [er, ec] = end;
-      const epx = ec * cw + cw / 2;
-      const epy = er * ch + ch / 2;
-      ctx.beginPath();
-      ctx.arc(epx, epy, Math.min(cw, ch) * 0.3, 0, Math.PI * 2);
-      ctx.strokeStyle = color;
-      ctx.globalAlpha = 0.35;
-      ctx.lineWidth   = 0.8;
-      ctx.stroke();
-      ctx.globalAlpha = 1;
-
-      // Ajan noktası
-      const [ar, ac] = start;
-      const px = ac * cw + cw / 2;
-      const py = ar * ch + ch / 2;
-      const radius = Math.min(cw, ch) * 0.35;
-
-      ctx.beginPath();
-      ctx.arc(px, py, radius * 1.7, 0, Math.PI * 2);
-      ctx.fillStyle = color + '12';
-      ctx.fill();
-
-      ctx.beginPath();
-      ctx.arc(px, py, radius, 0, Math.PI * 2);
-      ctx.fillStyle = color;
-      ctx.globalAlpha = 0.65;
-      ctx.fill();
-      ctx.globalAlpha = 1;
-
-      ctx.beginPath();
-      ctx.arc(px, py, radius * 0.32, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(255,255,255,0.5)';
-      ctx.fill();
-    });
-  }
-
-  function drawPreview() {
-    if (!canvasA || !canvasB) return;
-    fitCanvas(canvasA);
-    fitCanvas(canvasB);
-    if (!canvasA.width) return;
-
-    // Etiketleri güncelle
-    const algos = window.selectedAlgorithms;
-    const names = { bfs:'BFS', dfs:'DFS', dijkstra:'Dijkstra', astar:'A*' };
-    const labelA = document.getElementById('canvas-label-a');
-    const labelB = document.getElementById('canvas-label-b');
-    if (algos && algos.length >= 2) {
-      if (labelA) labelA.textContent = names[algos[0]] || algos[0];
-      if (labelB) labelB.textContent = names[algos[1]] || algos[1];
-    }
-
-    // Simülasyonla aynı seed → aynı başlangıç/hedef pozisyonları
-    const grid = new Grid(selectedMap);
-    const rng  = makeRng(42);
-    const agentData = [];
-    for (let i = 0; i < selectedCount; i++) {
-      const start = grid.randomFree(rng);
-      const end   = grid.randomFree(rng);
-      agentData.push({ start, end, color: COLORS[i % COLORS.length] });
-    }
-
-    drawPreviewCanvas(canvasA, grid, agentData);
-    drawPreviewCanvas(canvasB, grid, agentData);
-  }
-
-  // Dışarıdan çağrılabilir (algo-select.js "Simülasyona Geç" butonunda)
-  window.drawSimPreview = drawPreview;
-
-  // ── UI kontrolü ───────────────────────────────────────────
-  document.querySelectorAll('.map-option').forEach((el) => {
+  // ── UI olay dinleyicileri ─────────────────────────────────
+  document.querySelectorAll('.map-option').forEach(el => {
     el.addEventListener('click', () => {
       document.querySelectorAll('.map-option').forEach(e => e.classList.remove('selected'));
       el.classList.add('selected');
@@ -713,7 +874,7 @@
     });
   });
 
-  document.querySelectorAll('.agent-btn').forEach((el) => {
+  document.querySelectorAll('.agent-btn').forEach(el => {
     el.addEventListener('click', () => {
       document.querySelectorAll('.agent-btn').forEach(e => e.classList.remove('selected'));
       el.classList.add('selected');
@@ -725,35 +886,59 @@
   const startBtn = document.getElementById('sim-start');
   const resetBtn = document.getElementById('sim-reset');
 
-  startBtn && startBtn.addEventListener('click', () => {
+  startBtn && startBtn.addEventListener('click', async () => {
     const algos = window.selectedAlgorithms || ['bfs', 'astar'];
     if (algos.length < 2) {
       alert('Önce Algoritma Seçimi bölümünden iki algoritma seç!');
       return;
     }
 
-    fitCanvas(canvasA);
-    fitCanvas(canvasB);
+    // Backend'den path'leri al (yoksa local algoritma fallback)
+    startBtn.textContent = 'Hesaplanıyor...';
+    startBtn.disabled    = true;
 
-    const labelA = document.getElementById('canvas-label-a');
-    const labelB = document.getElementById('canvas-label-b');
-    const names  = { bfs:'BFS', dfs:'DFS', dijkstra:'Dijkstra', astar:'A*' };
-    if (labelA) labelA.textContent = names[algos[0]] || algos[0];
-    if (labelB) labelB.textContent = names[algos[1]] || algos[1];
+    let pathsA = null, pathsB = null;
+    try {
+      const [dataA, dataB] = await Promise.all([
+        fetchPaths(algos[0], selectedMap, selectedCount),
+        fetchPaths(algos[1], selectedMap, selectedCount),
+      ]);
+      pathsA = dataA.paths;
+      pathsB = dataB.paths;
+    } catch (e) {
+      console.warn('Backend bağlantısı yok, local algoritma kullanılıyor:', e.message);
+    }
 
-    simA = createSim(canvasA, algos[0], selectedMap, selectedCount);
-    simB = createSim(canvasB, algos[1], selectedMap, selectedCount);
+    try {
+      initRenderers();
+      rendererA.resize();
+      rendererB.resize();
 
-    // İlk kareyi çiz (tur sırasında görünür olsun)
-    drawSim(canvasA, simA);
-    drawSim(canvasB, simB);
+      const labelA = document.getElementById('canvas-label-a');
+      const labelB = document.getElementById('canvas-label-b');
+      const names  = { bfs:'BFS', dfs:'DFS', dijkstra:'Dijkstra', astar:'A*' };
+      if (labelA) labelA.textContent = names[algos[0]] || algos[0];
+      if (labelB) labelB.textContent = names[algos[1]] || algos[1];
 
-    const statsEl = document.getElementById('stats');
-    if (statsEl) statsEl.style.display = 'none';
+      simA = createSim(canvasA, algos[0], selectedMap, selectedCount, pathsA);
+      simB = createSim(canvasB, algos[1], selectedMap, selectedCount, pathsB);
 
-    resetBtn.style.display = 'inline-flex';
-    startBtn.textContent   = 'Çalışıyor...';
-    startBtn.disabled      = true;
+      rendererA.clearScene();
+      rendererB.clearScene();
+      rendererA.buildMap(simA.grid);
+      rendererB.buildMap(simB.grid);
+      rendererA.setupAgents(simA.agents);
+      rendererB.setupAgents(simB.agents);
+
+      // İlk kareyi çiz (tur sırasında görünür)
+      rendererA.update(simA, 0);
+      rendererB.update(simB, 0);
+
+      const statsEl = document.getElementById('stats');
+      if (statsEl) statsEl.style.display = 'none';
+
+      resetBtn.style.display  = 'inline-flex';
+      startBtn.textContent    = 'Çalışıyor...';
 
     const doStart = () => {
       simA.startTime = performance.now();
@@ -763,11 +948,15 @@
       startTicking();
     };
 
-    // Tur varsa önce tur, sonra başlat
-    if (typeof window.runTour === 'function') {
-      window.runTour(algos, doStart);
-    } else {
-      doStart();
+      if (typeof window.runTour === 'function') {
+        window.runTour(algos, doStart);
+      } else {
+        doStart();
+      }
+    } catch (err) {
+      console.error('Simülasyon başlatılamadı:', err);
+      startBtn.textContent = 'Simülasyonu Başlat';
+      startBtn.disabled    = false;
     }
   });
 
@@ -777,28 +966,19 @@
     running = false;
     globalFrame = 0;
 
-    [canvasA, canvasB].forEach(c => {
-      if (c) { const ctx = c.getContext('2d'); ctx.clearRect(0, 0, c.width, c.height); }
-    });
-
-    resetBtn.style.display = 'none';
-    startBtn.textContent   = 'Simülasyonu Başlat';
-    startBtn.disabled      = false;
+    resetBtn.style.display  = 'none';
+    startBtn.textContent    = 'Simülasyonu Başlat';
+    startBtn.disabled       = false;
 
     const statsEl = document.getElementById('stats');
     if (statsEl) statsEl.style.display = 'none';
 
-    // Sıfırlanınca önizleme geri gelir
     drawPreview();
   });
 
   window.addEventListener('resize', () => {
-    if (running) {
-      if (simA) { fitCanvas(canvasA); }
-      if (simB) { fitCanvas(canvasB); }
-    } else {
-      drawPreview();
-    }
+    if (rendererA) rendererA.resize();
+    if (rendererB) rendererB.resize();
   });
 
 })();

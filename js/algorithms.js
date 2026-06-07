@@ -26,17 +26,17 @@ window.Algorithms = (function () {
     return path;
   }
 
-  // BFS yönleri — sabit sıra → tüm ajanlar aynı yolu alır → çarpışma fazla
+  // BFS: sabit yön sırası → tüm ajanlar aynı deterministik yolu alır → yoğun çarpışma
   const BFS_DIRS = [[0,1],[1,0],[0,-1],[-1,0]];
 
-  // DFS yönleri — ters sıra → sola/yukarı önce gider → daha uzun kaotik yollar
+  // DFS: ters sıra → sola/yukarı önce → uzun kaotik yollar
   const DFS_DIRS = [[-1,0],[0,-1],[1,0],[0,1]];
 
   // ── BFS ──────────────────────────────────────────────────
   function bfs(grid, start, end) {
-    const visited = new Set();
-    const prev    = {};
-    const queue   = [[...start]];
+    const visited  = new Set();
+    const prev     = {};
+    const queue    = [[...start]];
     const startKey = `${start[0]},${start[1]}`;
     const endKey   = `${end[0]},${end[1]}`;
     visited.add(startKey);
@@ -59,9 +59,9 @@ window.Algorithms = (function () {
 
   // ── DFS ──────────────────────────────────────────────────
   function dfs(grid, start, end) {
-    const visited = new Set();
-    const prev    = {};
-    const stack   = [[...start]];
+    const visited  = new Set();
+    const prev     = {};
+    const stack    = [[...start]];
     const startKey = `${start[0]},${start[1]}`;
     const endKey   = `${end[0]},${end[1]}`;
     visited.add(startKey);
@@ -83,12 +83,19 @@ window.Algorithms = (function () {
   }
 
   // ── Dijkstra ─────────────────────────────────────────────
-  function dijkstra(grid, start, end) {
-    const dist = {};
-    const prev = {};
+  // agentId ile per-ajan küçük maliyet gürültüsü → rotalar hafifçe ayrışır
+  function dijkstra(grid, start, end, agentId = 0) {
+    function cellCost(r, c) {
+      const w = grid.weight(r, c);
+      if (w >= 99) return w;
+      return w + ((r * 43 + c * 19 + agentId * 83) % 100) * 0.025;
+    }
+
+    const dist     = {};
+    const prev     = {};
     const startKey = `${start[0]},${start[1]}`;
     const endKey   = `${end[0]},${end[1]}`;
-    const open = [{ key: startKey, cost: 0 }];
+    const open     = [{ key: startKey, cost: 0 }];
     dist[startKey] = 0;
 
     while (open.length) {
@@ -98,8 +105,7 @@ window.Algorithms = (function () {
       const [r, c] = key.split(',').map(Number);
       for (const [nr, nc] of neighbors(grid, r, c)) {
         const nk  = `${nr},${nc}`;
-        const w   = grid.weight(nr, nc);
-        const nc2 = cost + w;
+        const nc2 = cost + cellCost(nr, nc);
         if (dist[nk] === undefined || nc2 < dist[nk]) {
           dist[nk] = nc2;
           prev[nk] = key;
@@ -111,21 +117,25 @@ window.Algorithms = (function () {
   }
 
   // ── A* ───────────────────────────────────────────────────
-  // agentId: her ajan için farklı tie-breaking → ajanlar farklı yollar seçer → daha az çarpışma
+  // agentId ile güçlü per-ajan maliyet gürültüsü → her ajan farklı rota seçer → az çarpışma
   function astar(grid, start, end, agentId = 0) {
-    // Küçük hücre bazlı gürültü: aynı f-değerindeki düğümlerde farklı tercih
-    function noise(r, c) {
-      return ((r * 31 + c * 17 + agentId * 97) % 100) * 0.005;
+    function cellCost(r, c) {
+      const w = grid.weight(r, c);
+      if (w >= 99) return w;
+      // Her ajan farklı hücreleri "ucuz" görür → rotalar gerçekten ayrışır
+      return w + ((r * 73 + c * 31 + agentId * 151) % 100) * 0.045;
     }
+
     function h(r, c) {
-      return Math.abs(r - end[0]) + Math.abs(c - end[1]) + noise(r, c);
+      return Math.abs(r - end[0]) + Math.abs(c - end[1]);
     }
-    const g = {};
-    const prev = {};
+
+    const g        = {};
+    const prev     = {};
     const startKey = `${start[0]},${start[1]}`;
     const endKey   = `${end[0]},${end[1]}`;
-    const open = [{ key: startKey, f: h(start[0], start[1]) }];
-    g[startKey] = 0;
+    const open     = [{ key: startKey, f: h(start[0], start[1]) }];
+    g[startKey]    = 0;
 
     while (open.length) {
       open.sort((a, b) => a.f - b.f);
@@ -134,7 +144,7 @@ window.Algorithms = (function () {
       const [r, c] = key.split(',').map(Number);
       for (const [nr, nc] of neighbors(grid, r, c)) {
         const nk = `${nr},${nc}`;
-        const ng = (g[key] || 0) + grid.weight(nr, nc);
+        const ng = (g[key] || 0) + cellCost(nr, nc);
         if (g[nk] === undefined || ng < g[nk]) {
           g[nk]    = ng;
           prev[nk] = key;

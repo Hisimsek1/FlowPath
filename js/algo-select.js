@@ -364,11 +364,16 @@
       if (selected[i]) {
         slot.textContent = ALGO_DATA[selected[i]].name;
         slot.classList.add('filled');
+        slot.classList.remove('waiting');
       } else {
         slot.textContent = '—';
         slot.classList.remove('filled');
       }
     });
+    // 1. algoritma seçilince slot-1'i vurgula
+    if (slot1) {
+      slot1.classList.toggle('waiting', selected.length === 1);
+    }
   }
 
   // ── Devam butonu ─────────────────────────────────────────

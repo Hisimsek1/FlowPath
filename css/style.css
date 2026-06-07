@@ -699,6 +699,17 @@ body {
   background: rgba(255,255,255,0.04);
 }
 
+.algo-slot.waiting {
+  border-color: var(--accent-cyan);
+  color: var(--accent-cyan);
+  animation: slot-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes slot-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(0,212,255,0); }
+  50%       { box-shadow: 0 0 0 6px rgba(0,212,255,0.22); }
+}
+
 .algo-slot-sep {
   font-size: 0.7rem;
   color: var(--text-muted);
@@ -948,6 +959,45 @@ body {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+  position: relative;
+}
+
+.canvas-hud {
+  position: absolute;
+  top: 42px;
+  left: 10px;
+  background: rgba(5,5,18,0.85);
+  border: 1px solid rgba(0,212,255,0.12);
+  border-radius: 8px;
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  pointer-events: none;
+  z-index: 10;
+  backdrop-filter: blur(4px);
+}
+
+.hud-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 18px;
+}
+
+.hud-lbl {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: #3a3a5a;
+  text-transform: uppercase;
+}
+
+.hud-val {
+  font-size: 16px;
+  font-weight: 700;
+  color: #e8e4df;
+  font-family: 'Space Grotesk', monospace;
 }
 
 #canvas-a, #canvas-b {
@@ -1034,10 +1084,103 @@ body {
   color: var(--text-muted);
 }
 
+.stats-winner-banner {
+  display: flex;
+  align-items: center;
+  gap: 1.2rem;
+  background: var(--bg-card);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 12px;
+  padding: 1.4rem 2rem;
+  margin-bottom: 2rem;
+  flex-wrap: wrap;
+}
+
+.winner-label {
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.35em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.winner-name {
+  font-family: var(--font-heavy);
+  font-size: clamp(1.8rem, 4vw, 3.2rem);
+  font-weight: 400;
+  letter-spacing: 0.04em;
+}
+
+.winner-sub {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  margin-left: auto;
+}
+
+.stats-score-row {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  margin-bottom: 3rem;
+}
+
+.stats-score-card {
+  flex: 1;
+  background: var(--bg-card);
+  border: 1px solid rgba(255,255,255,0.05);
+  border-radius: 12px;
+  padding: 2rem 1.8rem;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.4rem;
+  transition: border-color 0.3s ease;
+}
+
+.stats-score-sep {
+  font-family: var(--font-heavy);
+  font-size: 1.4rem;
+  color: var(--text-muted);
+  letter-spacing: 0.08em;
+  flex-shrink: 0;
+}
+
+.score-algo-name {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+}
+
+.score-big {
+  font-family: var(--font-heavy);
+  font-size: clamp(3rem, 6vw, 5.5rem);
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  line-height: 1;
+}
+
+.score-unit {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  letter-spacing: 0.08em;
+}
+
+.score-badge {
+  font-size: 0.55rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  padding: 0.25rem 0.6rem;
+  border-radius: 3px;
+  border: 1px solid;
+  margin-top: 0.4rem;
+}
+
 .stats-charts {
   display: flex;
   flex-direction: column;
-  gap: 2rem;
+  gap: 1.5rem;
 }
 
 .chart-wrap {
@@ -1045,6 +1188,31 @@ body {
   border-radius: 12px;
   border: 1px solid var(--border);
   padding: 1.5rem;
+}
+
+.chart-donut-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.chart-donut-wrap {
+  background: var(--bg-card);
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  padding: 1.2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.chart-donut-label {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
 }
 
 /* ─────────────────────────────────────────
@@ -1070,7 +1238,7 @@ body {
 .tour-backdrop {
   position: absolute;
   inset: 0;
-  background: rgba(0,0,0,0.78);
+  background: rgba(0,0,0,0.38);
   backdrop-filter: blur(6px);
   cursor: pointer;
 }
@@ -1312,147 +1480,6 @@ body {
   box-shadow: 0 0 20px rgba(0,212,255,0.3);
 }
 
-/* ─────────────────────────────────────────
-   KARMAŞIKLIK ANALİZİ (stats bölümü)
-───────────────────────────────────────── */
-.complexity-section {
-  margin-top: 4rem;
-  padding-top: 3rem;
-  border-top: 1px solid var(--border);
-}
-
-.complexity-heading {
-  font-family: var(--font-heavy);
-  font-size: clamp(1.8rem, 3vw, 3rem);
-  font-weight: 400;
-  letter-spacing: 0.01em;
-  margin-bottom: 2rem;
-  color: var(--text-primary);
-}
-
-.complexity-cards {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1.5rem;
-  margin-bottom: 2rem;
-}
-
-.complexity-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 1.8rem;
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.complexity-card-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  flex-wrap: wrap;
-}
-
-.complexity-card-name {
-  font-family: var(--font-heavy);
-  font-size: 2rem;
-  font-weight: 400;
-  letter-spacing: 0.01em;
-  color: var(--text-primary);
-}
-
-.complexity-badge {
-  font-size: 0.58rem;
-  font-weight: 700;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  padding: 0.25rem 0.65rem;
-  border-radius: 3px;
-  border: 1px solid;
-  white-space: nowrap;
-}
-
-.complexity-badge.badge-good {
-  color: var(--accent-cyan);
-  border-color: rgba(0,212,255,0.4);
-  background: rgba(0,212,255,0.06);
-}
-
-.complexity-badge.badge-bad {
-  color: #ff6666;
-  border-color: rgba(255,80,80,0.4);
-  background: rgba(255,80,80,0.06);
-}
-
-.complexity-full-name {
-  font-size: 0.72rem !important;
-  color: var(--text-muted) !important;
-  letter-spacing: 0.05em;
-  margin: 0 !important;
-}
-
-.complexity-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.complexity-table tr {
-  border-bottom: 1px solid rgba(255,255,255,0.04);
-}
-
-.complexity-table tr:last-child { border-bottom: none; }
-
-.complexity-label {
-  font-size: 0.68rem;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-  padding: 0.5rem 0;
-  width: 55%;
-}
-
-.complexity-val {
-  font-size: 0.82rem;
-  font-weight: 600;
-  color: var(--text-primary);
-  font-family: 'Courier New', monospace;
-  padding: 0.5rem 0;
-}
-
-.complexity-desc {
-  font-size: 0.84rem !important;
-  color: var(--text-secondary) !important;
-  line-height: 1.65 !important;
-  padding-top: 0.75rem !important;
-  border-top: 1px solid rgba(255,255,255,0.05) !important;
-  margin: 0 !important;
-}
-
-.algo-why-block {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-left: 3px solid var(--accent-cyan);
-  border-radius: 0 12px 12px 0;
-  padding: 1.8rem 2rem;
-}
-
-.algo-why-block h4 {
-  font-size: 0.62rem;
-  font-weight: 700;
-  letter-spacing: 0.3em;
-  text-transform: uppercase;
-  color: var(--accent-cyan);
-  margin-bottom: 0.75rem;
-}
-
-.algo-why-block p {
-  font-size: 0.9rem;
-  color: var(--text-secondary);
-  line-height: 1.75;
-}
 
 /* ─────────────────────────────────────────
    YARDIMCI
