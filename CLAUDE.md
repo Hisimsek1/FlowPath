@@ -30,6 +30,26 @@ Her oturumda önce bu dosyayı oku, sonra README.md'yi oku.
 - [x] Simülasyon kontrolleri: label/button görünürlüğü iyileştirildi
 - [ ] Intro video entegrasyonu — videos/intro.mp4 gelince otomatik devreye girer
 
+## Aktif Fix Oturumu (2026-06-07)
+
+Planlanan değişiklikler (onay alındıkça işaretlenir):
+- [x] **Adım 1** — backend/app.py: try/except validation, agent_count max 55, import random kaldırıldı, algo_key None güvenliği, random_free() sonsuz döngü güvencesi eklendi
+- [x] **Adım 2** — simulation.js: flashTimer decrement (KRİTİK bug) — tickSim() içine eklendi
+- [x] **Adım 3** — simulation.js: WEIGHT_ZONES tam senkron — her zone'a ayrı weight eklendi ([r0,r1,c0,c1,ww]), _buildWeights() güncellendi, ZONE_WEIGHT sabiti kaldırıldı
+- [x] **Adım 4** — simulation.js: Backend entegrasyonu + 2 debugger düzeltmesi: fetchPaths(), createSim precomputedPaths, startBtn async + try/catch ile buton kilitleme önlendi
+- [x] **Adım 5** — index.html: 45 ve 55 ajan butonları eklendi (CSS değişikliği gerekmedi)
+- [x] **Adım 6** — stats.js: `<=` → `<` fix (eşitlikte banner ile skor kartı artık tutarlı) + dual-axis chart (sol eksen çarpışma, sağ eksen adım)
+- [x] **Adım 7** — algo-select.js: _updateSlots() waiting class eklendi; css: .algo-slot.waiting + @keyframes slot-pulse eklendi; index.html: nav HARİTALAR → #sim-controls, sim-controls id eklendi; css: HUD font 8px→10px, 12px→16px
+
+## Kritik Mantık Hataları Düzeltmesi (2026-06-11)
+
+BFS'nin A*'dan daha iyi performans göstermesi sorununa 4 kritik bug bulundu ve düzeltildi:
+
+- [x] **Bug 1 (KRİTİK)** — simulation.js line 811: Çarpışma sayımı yanlış — her hücre için sadece +1 ekliyordu, doğrusu `group.length - 1` olmalı. ÖRN: 5 ajan çarpışırsa frontend 1 sayar, backend 4 sayar. DÜZELTME: `sim.collisions += group.length - 1`
+- [x] **Bug 2 (KRİTİK)** — algorithms.js line 126: A* gürültüsü cellCost'a ekleniyordu (admissibility bozuluyor), backend'de heuristic'e ekleniyor. DÜZELTME: Gürültü heuristic'e taşındı, backend ile tutarlı hale getirildi (noise: 0.005, formula: r*31+c*17+id*97)
+- [x] **Bug 3 (KRİTİK)** — simulation.js line 164: WEIGHT_ZONES ilk eşleşmede break yapıyordu, backend max() kullanıyor. Zone overlap durumunda farklı weight'ler. DÜZELTME: `w = Math.max(w, ww)` kullanıldı
+- [x] **Bug 4 (AÇIKLAMA)** — Frontend Dijkstra gürültü ekliyor (line 91), backend eklemiyor. Bu frontend için avantaj — ajanlar farklı rotalar seçiyor, az çarpışma. Backend Dijkstra tüm ajanlara aynı yolu veriyor → çok çarpışma. Frontend davranışı daha iyi, değişiklik GEREKLİ DEĞİL.
+
 ---
 
 ## Dosya Yapısı (Mevcut)
@@ -59,15 +79,7 @@ FLOWW PATHH/
     └── örnekVideo.mp4  ← referans video (kullanılmıyor)
 ```
 
----
 
-## Kullanıcı Hakkında
-
-- Algoritmalar dersi öğrencisi
-- Python'ı az çok biliyor, JavaScript/frontend'e daha az hakim
-- Projeyi sınıfta canlı demo yapacak, anlatım yapacak
-- Görsel etki çok önemli (hoca UI/UX istiyor)
-- **Teslim: 1-2 gün içinde bitmeli**
 
 ---
 

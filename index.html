@@ -198,78 +198,82 @@
        BÖLÜM 5 — SİMÜLASYON
   ───────────────────────────────────────── -->
   <section id="simulation">
-    <div class="sim-header">
-      <span class="section-label-tag">Simülasyon</span>
-      <h2>Algoritmayı çalıştır</h2>
-      <p id="sim-algo-display">Seçilen algoritmalar burada görünecek</p>
-    </div>
-
     <div class="sim-controls" id="sim-controls">
-      <div class="control-group">
-        <label>Harita Seç</label>
-        <div class="map-options">
 
-          <div class="map-option-wrap">
-            <div class="map-option selected" data-map="0">
-              <img src="assets/maps/map1.png" alt="Harita 1"
-                onload="this.nextElementSibling.style.display='none'"
-                onerror="this.style.display='none'" />
-              <div class="map-placeholder">H1</div>
-            </div>
-            <div class="map-desc">
-              <span class="map-desc-name">Şehir Izgara</span>
-              <span class="map-desc-text">Dar sokaklar, ızgara düzen. Çarpışma riski yüksek.</span>
-              <span class="map-desc-tip">A* / Dijkstra önerilir</span>
+      <!-- Arka plan akan animasyon canvas -->
+      <canvas class="sim-bg-canvas" id="sim-bg-canvas"></canvas>
+
+      <!-- Sol panel: başlık + seçili algoritmalar -->
+      <div class="sim-panel-left">
+        <span class="section-label-tag">Simülasyon</span>
+        <h2 class="sim-panel-title">Algoritmayı<br>Çalıştır</h2>
+        <p id="sim-algo-display">Seçilen algoritmalar burada görünecek</p>
+      </div>
+
+      <!-- Sağ panel: kontroller -->
+      <div class="sim-panel-right">
+
+        <div class="sim-panel-right-controls">
+          <div class="control-group">
+            <label>Harita Seç</label>
+            <div class="map-options">
+
+              <div class="map-option-wrap">
+                <div class="map-option selected" data-map="0">
+                  <img src="assets/maps/map1.png" alt="Harita 1"
+                    onload="this.nextElementSibling.style.display='none'"
+                    onerror="this.style.display='none'" />
+                  <div class="map-placeholder">H1</div>
+                </div>
+                <span class="map-desc-name">Şehir Izgara</span>
+              </div>
+
+              <div class="map-option-wrap">
+                <div class="map-option" data-map="1">
+                  <img src="assets/maps/map2.png" alt="Harita 2"
+                    onload="this.nextElementSibling.style.display='none'"
+                    onerror="this.style.display='none'" />
+                  <div class="map-placeholder">H2</div>
+                </div>
+                <span class="map-desc-name">Labirent</span>
+              </div>
+
+              <div class="map-option-wrap">
+                <div class="map-option" data-map="2">
+                  <img src="assets/maps/map3.png" alt="Harita 3"
+                    onload="this.nextElementSibling.style.display='none'"
+                    onerror="this.style.display='none'" />
+                  <div class="map-placeholder">H3</div>
+                </div>
+                <span class="map-desc-name">Açık Alan</span>
+              </div>
+
             </div>
           </div>
 
-          <div class="map-option-wrap">
-            <div class="map-option" data-map="1">
-              <img src="assets/maps/map2.png" alt="Harita 2"
-                onload="this.nextElementSibling.style.display='none'"
-                onerror="this.style.display='none'" />
-              <div class="map-placeholder">H2</div>
-            </div>
-            <div class="map-desc">
-              <span class="map-desc-name">Labirent</span>
-              <span class="map-desc-text">Tek yollu koridorlar. Tıkanma kaçınılmaz.</span>
-              <span class="map-desc-tip">BFS / A* önerilir</span>
-            </div>
-          </div>
-
-          <div class="map-option-wrap">
-            <div class="map-option" data-map="2">
-              <img src="assets/maps/map3.png" alt="Harita 3"
-                onload="this.nextElementSibling.style.display='none'"
-                onerror="this.style.display='none'" />
-              <div class="map-placeholder">H3</div>
-            </div>
-            <div class="map-desc">
-              <span class="map-desc-name">Açık Alan</span>
-              <span class="map-desc-text">Geniş alan, seyrek engel. Algoritma farkı net görünür.</span>
-              <span class="map-desc-tip">Tüm algoritmalar uygun</span>
+          <div class="control-group">
+            <label>Ajan Sayısı</label>
+            <div class="agent-options">
+              <button class="agent-btn selected" data-count="5">5</button>
+              <button class="agent-btn" data-count="15">15</button>
+              <button class="agent-btn" data-count="25">25</button>
+              <button class="agent-btn" data-count="35">35</button>
+              <button class="agent-btn" data-count="45">45</button>
+              <button class="agent-btn" data-count="55">55</button>
+              <button class="agent-btn" data-count="65">65</button>
+              <button class="agent-btn" data-count="75">75</button>
+              <button class="agent-btn" data-count="85">85</button>
             </div>
           </div>
-
         </div>
-      </div>
 
-      <div class="control-group">
-        <label>Ajan Sayısı</label>
-        <div class="agent-options">
-          <button class="agent-btn selected" data-count="5">5</button>
-          <button class="agent-btn" data-count="15">15</button>
-          <button class="agent-btn" data-count="25">25</button>
-          <button class="agent-btn" data-count="35">35</button>
-          <button class="agent-btn" data-count="45">45</button>
-          <button class="agent-btn" data-count="55">55</button>
+        <div class="sim-action-btns">
+          <button class="btn-primary" id="sim-start">Simülasyonu Başlat</button>
+          <button class="btn-secondary" id="sim-reset" style="display:none;">Sıfırla</button>
         </div>
+
       </div>
 
-      <div class="sim-action-btns">
-        <button class="btn-primary" id="sim-start">Simülasyonu Başlat</button>
-        <button class="btn-secondary" id="sim-reset" style="display:none;">Sıfırla</button>
-      </div>
     </div>
 
     <div class="sim-canvases" id="sim-canvases">
@@ -333,16 +337,6 @@
       <div class="stats-charts">
         <div class="chart-wrap">
           <canvas id="chart-collision"></canvas>
-        </div>
-        <div class="chart-donut-row">
-          <div class="chart-donut-wrap">
-            <p class="chart-donut-label" id="donut-label-a">—</p>
-            <canvas id="chart-donut-a"></canvas>
-          </div>
-          <div class="chart-donut-wrap">
-            <p class="chart-donut-label" id="donut-label-b">—</p>
-            <canvas id="chart-donut-b"></canvas>
-          </div>
         </div>
       </div>
     </div>

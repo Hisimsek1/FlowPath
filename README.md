@@ -220,6 +220,36 @@ BFS bu ağırlıkları görmez, Dijkstra/A\* bu bölgelerden kaçar → farklı 
 
 ---
 
+## Ekip & Görev Dağılımı
+
+<table>
+  <tr>
+    <td align="center" width="33%">
+      <img src="https://ui-avatars.com/api/?name=Halil+Ibrahim+Simsek&size=100&background=00d4ff&color=000&bold=true&rounded=true" width="80" /><br/>
+      <strong>Halil İbrahim Şimşek</strong><br/>
+      <img src="https://img.shields.io/badge/Backend-%2300d4ff?style=flat-square" />
+      <img src="https://img.shields.io/badge/Simülasyon-%2300d4ff?style=flat-square" /><br/>
+      <sub>Simülasyon motoru · JS & Python algoritmalar · Flask API · Canlı demo</sub>
+    </td>
+    <td align="center" width="33%">
+      <img src="https://ui-avatars.com/api/?name=Batuhan+Okyay&size=100&background=ffffff&color=000&bold=true&rounded=true" width="80" /><br/>
+      <strong>Batuhan Okyay</strong><br/>
+      <img src="https://img.shields.io/badge/Frontend-%23888888?style=flat-square" />
+      <img src="https://img.shields.io/badge/Teknik%20Rapor-%23888888?style=flat-square" /><br/>
+      <sub>Hero · Intro · Story animasyonları · Teknik raporun yazımı</sub>
+    </td>
+    <td align="center" width="33%">
+      <img src="https://ui-avatars.com/api/?name=Betul+Dut&size=100&background=ffffff&color=000&bold=true&rounded=true" width="80" /><br/>
+      <strong>Betül Dut</strong><br/>
+      <img src="https://img.shields.io/badge/Frontend-%23888888?style=flat-square" />
+      <img src="https://img.shields.io/badge/Sunum-%23888888?style=flat-square" /><br/>
+      <sub>Globe · CSS tasarım sistemi · İstatistik UI · Sunum slaytları</sub>
+    </td>
+  </tr>
+</table>
+
+---
+
 ## Lisans
 
 MIT

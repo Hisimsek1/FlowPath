@@ -160,8 +160,9 @@
         for (let c = 0; c < COLS; c++) {
           if (this.data[r][c] === 1) { row.push(99); continue; }
           let w = 1;
+          // FIX: Backend ile tutarlı — zone overlap durumunda en yüksek weight'i kullan
           for (const [r0,r1,c0,c1,ww] of WEIGHT_ZONES) {
-            if (r >= r0 && r <= r1 && c >= c0 && c <= c1) { w = ww; break; }
+            if (r >= r0 && r <= r1 && c >= c0 && c <= c1) { w = Math.max(w, ww); }
           }
           row.push(w);
         }
@@ -808,7 +809,7 @@
     });
     posMap.forEach(group => {
       if (group.length >= 2) {
-        sim.collisions++;
+        sim.collisions += group.length - 1;  // FIX: Çarpışma sayısı = ajan_sayısı - 1 (backend ile tutarlı)
         group.forEach(ag => { ag.collided = true; ag.flashTimer = 10; });
       }
     });
@@ -1041,4 +1042,102 @@
     if (rendererB) rendererB.resize();
   });
 
+})();
+
+/* ── Sim kontrol paneli — yılan/path arka plan animasyonu ─── */
+(function () {
+  const cvs = document.getElementById('sim-bg-canvas');
+  if (!cvs) return;
+  const ctx = cvs.getContext('2d');
+
+  let W, H;
+  const SNAKE_COUNT  = 6;   // eş zamanlı yılan sayısı
+  const TAIL_LEN     = 55;  // her yılanın kaç segment uzunluğu
+  const SPEED        = 0.55; // piksel/frame
+  const TURN_SPEED   = 0.032; // maksimum dönüş açısı (radyan/frame)
+
+  let snakes = [];
+
+  function resize() {
+    const rect = cvs.parentElement.getBoundingClientRect();
+    W = cvs.width  = rect.width  || 800;
+    H = cvs.height = rect.height || 220;
+  }
+
+  function makeSnake() {
+    const x   = Math.random() * W;
+    const y   = Math.random() * H;
+    const ang = Math.random() * Math.PI * 2;
+    // history: yılanın geçtiği tüm noktalar (ring buffer gibi)
+    const hist = [];
+    for (let i = 0; i < TAIL_LEN; i++) hist.push({ x, y });
+    return {
+      x, y,
+      angle: ang,
+      // her yılan kendi frekans/fazıyla kıvrılır
+      freq:  0.018 + Math.random() * 0.012,
+      phase: Math.random() * Math.PI * 2,
+      hist,
+      t: 0,
+    };
+  }
+
+  function initSnakes() {
+    snakes = Array.from({ length: SNAKE_COUNT }, makeSnake);
+  }
+
+  function draw(ts) {
+    requestAnimationFrame(draw);
+    ctx.clearRect(0, 0, W, H);
+
+    snakes.forEach(s => {
+      s.t++;
+      // Açıyı sinüs ile yavaşça döndür → organik kıvrım
+      s.angle += Math.sin(s.t * s.freq + s.phase) * TURN_SPEED;
+
+      // Başı ilerlet
+      s.x += Math.cos(s.angle) * SPEED;
+      s.y += Math.sin(s.angle) * SPEED;
+
+      // Duvardan geç (wrap)
+      if (s.x < -10) s.x = W + 10;
+      if (s.x > W+10) s.x = -10;
+      if (s.y < -10) s.y = H + 10;
+      if (s.y > H+10) s.y = -10;
+
+      // Geçmişi kaydır
+      s.hist.push({ x: s.x, y: s.y });
+      if (s.hist.length > TAIL_LEN) s.hist.shift();
+
+      // Çizgi: kuyruktan başa doğru — alfa kuyruğa gidince solar
+      const len = s.hist.length;
+      for (let i = 1; i < len; i++) {
+        const progress = i / len;           // 0 = kuyruk, 1 = baş
+        const alpha    = progress * 0.18;   // baş daha belirgin
+        const lw       = 0.8 + progress * 0.8;
+
+        ctx.beginPath();
+        ctx.strokeStyle = `rgba(200,200,200,${alpha})`;
+        ctx.lineWidth   = lw;
+        ctx.lineJoin    = 'round';
+        ctx.lineCap     = 'round';
+        ctx.moveTo(s.hist[i - 1].x, s.hist[i - 1].y);
+        ctx.lineTo(s.hist[i].x,     s.hist[i].y);
+        ctx.stroke();
+      }
+
+      // Baş noktası — küçük parlak nokta
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, 1.5, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(200,200,200,0.28)';
+      ctx.fill();
+    });
+  }
+
+  resize();
+  initSnakes();
+  requestAnimationFrame(draw);
+
+  const ro = new ResizeObserver(() => { resize(); initSnakes(); });
+  ro.observe(cvs.parentElement);
 })();

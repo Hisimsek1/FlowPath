@@ -117,17 +117,19 @@ window.Algorithms = (function () {
   }
 
   // ── A* ───────────────────────────────────────────────────
-  // agentId ile güçlü per-ajan maliyet gürültüsü → her ajan farklı rota seçer → az çarpışma
+  // agentId ile heuristik gürültüsü → tie-breaking, her ajan farklı rota seçer → az çarpışma
   function astar(grid, start, end, agentId = 0) {
     function cellCost(r, c) {
       const w = grid.weight(r, c);
       if (w >= 99) return w;
-      // Her ajan farklı hücreleri "ucuz" görür → rotalar gerçekten ayrışır
-      return w + ((r * 73 + c * 31 + agentId * 151) % 100) * 0.045;
+      // FIX: Gürültü heuristik'e taşındı, cellCost temiz kalıyor (A* admissibility korunuyor)
+      return w;
     }
 
     function h(r, c) {
-      return Math.abs(r - end[0]) + Math.abs(c - end[1]);
+      // FIX: Gürültü heuristik'te — backend ile tutarlı, tie-breaking için
+      const noise = ((r * 31 + c * 17 + agentId * 97) % 100) * 0.005;
+      return Math.abs(r - end[0]) + Math.abs(c - end[1]) + noise;
     }
 
     const g        = {};

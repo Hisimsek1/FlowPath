@@ -178,7 +178,7 @@ def simulate():
         return jsonify({'error': 'map 0, 1 veya 2 olmalı'}), 400
     if algo_key not in ('bfs', 'dfs', 'dijkstra', 'astar'):
         return jsonify({'error': 'algorithm: bfs, dfs, dijkstra, astar'}), 400
-    if not (1 <= agent_count <= 55):
+    if not (1 <= agent_count <= 85):
         return jsonify({'error': 'agents 1-55 arasında olmalı'}), 400
 
     grid    = MAPS[map_index]
@@ -219,8 +219,9 @@ def simulate():
     for step in range(max_len):
         pos_count = {}
         for path in paths:
-            idx = min(step, len(path) - 1)
-            key = (path[idx][0], path[idx][1])
+            if step >= len(path):
+                continue  # hedefe ulaşmış ajanı say — frontend ile tutarlı
+            key = (path[step][0], path[step][1])
             pos_count[key] = pos_count.get(key, 0) + 1
         for cnt in pos_count.values():
             if cnt >= 2:

@@ -2,8 +2,6 @@
 
 (function () {
   let chartCollision = null;
-  let chartDonutA    = null;
-  let chartDonutB    = null;
 
   // Tema renkleri — dark temaya uygun
   const COLOR_A   = '#00d4ff';  // cyan
@@ -15,8 +13,6 @@
 
   function destroyCharts() {
     if (chartCollision) { chartCollision.destroy(); chartCollision = null; }
-    if (chartDonutA)    { chartDonutA.destroy();    chartDonutA    = null; }
-    if (chartDonutB)    { chartDonutB.destroy();    chartDonutB    = null; }
   }
 
   // ── Kazanan banner ────────────────────────────────────────
@@ -123,47 +119,6 @@
     });
   }
 
-  // ── Donut chart — çarpışan ajan oranı ────────────────────
-  function renderDonut(canvasId, labelId, algoName, collidedCount, totalCount, color) {
-    const ctx   = document.getElementById(canvasId);
-    const label = document.getElementById(labelId);
-    if (!ctx) return null;
-
-    const clean = Math.max(0, totalCount - collidedCount);
-    if (label) label.textContent = algoName;
-
-    return new Chart(ctx, {
-      type: 'doughnut',
-      data: {
-        labels: ['Çarpışmalı', 'Güvenli'],
-        datasets: [{
-          data: [collidedCount, clean],
-          backgroundColor: [color + 'bb', COLOR_DIM],
-          borderColor:     [color,        'rgba(255,255,255,0.04)'],
-          borderWidth: [2, 1],
-          hoverOffset: 6,
-        }],
-      },
-      options: {
-        responsive: true,
-        cutout: '68%',
-        plugins: {
-          legend: {
-            position: 'bottom',
-            labels: { color: TEXT, font: { family: FONT, size: 11 }, padding: 10, boxWidth: 10 },
-          },
-          title: {
-            display: true,
-            text: 'Ajan Durumu',
-            color: TEXT,
-            font: { family: FONT, size: 12, weight: '600' },
-            padding: { bottom: 6 },
-          },
-        },
-      },
-    });
-  }
-
   // ── Ana renderCharts ──────────────────────────────────────
   window.renderCharts = function () {
     const d = window._simStats;
@@ -174,8 +129,5 @@
     renderScoreCards(d);
     renderCollisionChart(d);
 
-    const total = d.agentCount || 10;
-    chartDonutA = renderDonut('chart-donut-a', 'donut-label-a', d.algoA, d.collidedA || 0, total, COLOR_A);
-    chartDonutB = renderDonut('chart-donut-b', 'donut-label-b', d.algoB, d.collidedB || 0, total, COLOR_B);
   };
 })();
